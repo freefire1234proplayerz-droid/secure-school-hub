@@ -12,18 +12,30 @@ class LocalDb {
     _cacheBox = await Hive.openBox(cacheBoxName);
   }
 
-  // Auth storage
   static Future<void> saveToken(String token) async {
     await _authBox.put('jwt', token);
   }
 
   static String? get token => _authBox.get('jwt') as String?;
 
+  static Future<void> saveRole(String role) async {
+    await _authBox.put('role', role);
+  }
+
+  static String? get role => _authBox.get('role') as String?;
+
+  static Future<void> saveEmail(String email) async {
+    await _authBox.put('email', email);
+  }
+
+  static String? get email => _authBox.get('email') as String?;
+
+  static bool get hasSession => token != null && token!.isNotEmpty;
+
   static Future<void> clearAuth() async {
     await _authBox.clear();
   }
 
-  // Generic cache for offline sync (homework, attendance, messages etc.)
   static Future<void> saveCache(String key, dynamic value) async {
     await _cacheBox.put(key, value);
   }

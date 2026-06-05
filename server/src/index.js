@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
-import { authRouter } from './routes/auth.js';
+import { authRoutes } from './routes/authRoutes.js';
 import { attendanceRouter } from './routes/attendance.js';
 import { homeworkRouter } from './routes/homework.js';
 import { feesRouter } from './routes/fees.js';
@@ -26,13 +26,18 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
 });
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: 'Too many auth attempts, try again later' },
+});
 app.use(limiter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/homework', homeworkRouter);
 app.use('/api/fees', feesRouter);

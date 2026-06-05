@@ -3,20 +3,47 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export function authRequired(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+function attachUser(req, decoded) {
+  const id = decoded.id ?? decoded.sub;
+  req.user = {
+    ...decoded,
+    id,
+    sub: decoded.sub ?? id,
+  };
+}
+
+export function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token' });
+  }
+
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Missing token' });
+    return res.status(401).json({ error: 'No token' });
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    attachUser(req, decoded);
     return next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Invalid token' });
+  } catch {
+    return res.status(403).json({ error: 'Invalid token' });
   }
 }
 
+/** Backward-compatible alias used by existing API routes. */
+export const authRequired = verifyToken;
+
+export function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user?.role || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    return next();
+  };
+}
