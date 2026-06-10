@@ -12,9 +12,14 @@ import 'screens/parent_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+  };
+  ErrorWidget.builder = (details) => _GlobalErrorFallback(details: details);
   await Hive.initFlutter();
   await LocalDb.init();
 
@@ -37,22 +42,9 @@ class SecureSchoolHubApp extends StatelessWidget {
           return MaterialApp(
             title: 'SecureSchoolHub',
             debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorSchemeSeed: Colors.indigo,
-              brightness: Brightness.light,
-              cardTheme: const CardThemeData(
-                margin: EdgeInsets.zero,
-              ),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorSchemeSeed: Colors.indigo,
-              brightness: Brightness.dark,
-              cardTheme: const CardThemeData(
-                margin: EdgeInsets.zero,
-              ),
-            ),
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: ThemeMode.system,
             locale: localeProvider.locale,
             supportedLocales: const [
               Locale('en'),
@@ -64,6 +56,11 @@ class SecureSchoolHubApp extends StatelessWidget {
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
+            builder: (context, child) {
+              return _GlobalErrorBoundary(
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             home: const LoginScreen(),
             routes: {
               AdminDashboard.routeName: (_) => const AdminDashboard(),
@@ -72,6 +69,67 @@ class SecureSchoolHubApp extends StatelessWidget {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _GlobalErrorBoundary extends StatelessWidget {
+  const _GlobalErrorBoundary({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return child;
+  }
+}
+
+class _GlobalErrorFallback extends StatelessWidget {
+  const _GlobalErrorFallback({required this.details});
+
+  final FlutterErrorDetails details;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = details.exceptionAsString();
+    return Material(
+      color: const Color(0xFF111318),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Colors.white70,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Something went wrong',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

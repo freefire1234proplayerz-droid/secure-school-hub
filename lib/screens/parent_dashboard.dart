@@ -6,9 +6,19 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/frontend_experience_service.dart';
 import '../utils/json_num.dart';
-import '../widgets/dashboard/dashboard_components.dart';
-import '../widgets/language_toggle.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/dashboard/dashboard_components.dart' hide DashboardSection;
+import '../widgets/dashboard/dashboard_grid.dart';
+import '../widgets/dashboard/dashboard_section.dart';
+import '../widgets/dashboard/kpi_stat_card.dart';
+import '../widgets/design_system/app_button.dart';
+import '../widgets/attendance/attendance_models.dart';
+import '../widgets/attendance/parent_attendance_module.dart';
+import '../widgets/communication/parent_communication_module.dart';
+import '../widgets/experience/production_experience.dart';
+import '../widgets/shell/app_shell.dart';
 import 'login_screen.dart';
 
 class ParentDashboard extends StatefulWidget {
@@ -22,11 +32,20 @@ class ParentDashboard extends StatefulWidget {
 
 class _ParentDashboardState extends State<ParentDashboard> {
   final ApiService _api = ApiService();
-  final TextEditingController _messageController = TextEditingController();
-  List<String> _messages = [
-    'Teacher: Aarav reached school safely.',
-    'Me: Thank you, ma\'am.',
-  ];
+  bool _loading = true;
+  int _selectedNav = 0;
+
+  final _sectionKeys = <String, GlobalKey>{
+    for (final id in [
+      'overview',
+      'attendance',
+      'grades',
+      'homework',
+      'messages',
+    ])
+      id: GlobalKey(),
+  };
+
   List<DashboardNotification> _notifications = const [
     DashboardNotification(
       title: 'Child entered school',
@@ -62,8 +81,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
   @override
   void initState() {
     super.initState();
-    _loadDashboard();
-    _loadChat();
+    _refreshDashboard();
   }
 
   String _formatError(Object e) {
@@ -85,32 +103,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
         backgroundColor: isError ? Colors.red.shade700 : null,
       ),
     );
-  }
-
-  Future<void> _loadChat() async {
-    try {
-      final res = await _api.get('/chat/history');
-      final rows = List<Map<String, dynamic>>.from(
-        res.data['messages'] as List<dynamic>? ?? [],
-      );
-      if (!mounted) return;
-      setState(() {
-        _messages = rows
-            .map((m) {
-              final who = m['senderRole'] == 'parent' ? 'Me' : 'Teacher';
-              return '$who: ${m['body']}';
-            })
-            .toList();
-      });
-    } catch (_) {
-      // Keep demo messages if chat API is offline.
-    }
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
   }
 
   Future<void> _logout() async {
@@ -140,7 +132,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   Future<void> _refreshDashboard() async {
-    await Future.wait([_loadDashboard(), _loadChat()]);
+    setState(() => _loading = true);
+    await _loadDashboard();
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _uploadFeeProof() async {
@@ -157,6 +151,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
       await _refreshDashboard();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.upload,
+        title: 'Offline fee proof: ${file.name}',
+        payload: {'fileName': file.name, 'size': file.size},
+      );
       _showSnack('Upload failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -234,23 +233,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
     return (score / maxScore).clamp(0, 1);
   }
 
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    setState(() {
-      _messages.add('Me: $text');
-      _messageController.clear();
-    });
-
-    try {
-      await _api.post('/chat/send', data: {'message': text});
-      await _loadChat();
-      await _loadDashboard();
-    } catch (e) {
-      if (!mounted) return;
-      _showSnack('Send failed: ${_formatError(e)}', isError: true);
-    }
+  List<ShellNotification> _shellNotifications() {
+    return [
+      for (var i = 0; i < _notifications.length; i++)
+        ShellNotification(
+          id: 'n-$i',
+          title: _notifications[i].title,
+          body: _notifications[i].detail,
+          icon: _notifications[i].icon,
+          color: _notifications[i].color,
+          time: _notifications[i].time,
+        ),
+    ];
   }
 
   @override
@@ -259,284 +253,262 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final colorScheme = Theme.of(context).colorScheme;
     final grades =
         List<Map<String, dynamic>>.from(_dashboard['grades'] as List? ?? []);
-    final homework =
-        List<Map<String, dynamic>>.from(_dashboard['homework'] as List? ?? []);
     final attendancePercent = asInt(_dashboard['attendancePercent'], 94);
     final gradeAverage = asInt(_dashboard['gradeAverage'], 86);
+    final childName = _dashboard['childName']?.toString() ?? 'Aarav Sharma';
 
-    return Focus(
-      autofocus: true,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(loc.parent),
-          actions: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Center(child: LanguageToggle()),
-            ),
-            IconButton(
-              tooltip: 'Logout',
-              onPressed: _logout,
-              icon: const Icon(Icons.logout),
-            ),
-          ],
+    return AppShell(
+      title: 'Parent Portal',
+      navItems: ShellNavConfig.parent,
+      selectedIndex: _selectedNav,
+      onNavSelected: (i) => setState(() => _selectedNav = i),
+      sectionKeys: _sectionKeys,
+      notifications: _shellNotifications(),
+      onLogout: _logout,
+      onRefresh: _refreshDashboard,
+      isLoading: _loading,
+      quickActions: [
+        ShellQuickAction(
+          label: 'Upload fee proof',
+          icon: Icons.upload_file_outlined,
+          onTap: _uploadFeeProof,
         ),
-        body: DashboardShell(
-          title: _dashboard['childName']?.toString() ?? 'Aarav Sharma',
-          subtitle:
-              'Attendance, grades, reminders, and secure school communication.',
-          trailing: FilledButton.icon(
-            onPressed: _refreshDashboard,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh'),
-          ),
-          children: [
-            ResponsiveGrid(
+        ShellQuickAction(
+          label: 'Refresh grades',
+          icon: Icons.school_outlined,
+          onTap: _loadGrades,
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ShellSection(
+            sectionKey: _sectionKeys['overview']!,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MetricCard(
-                  label: 'Child attendance',
-                  value: '$attendancePercent%',
-                  icon: Icons.how_to_reg_outlined,
-                  color: colorScheme.primary,
-                  trend: '+3%',
-                  detail: 'Present today at 8:04 AM',
+                DashboardPageHeader(
+                  title: childName,
+                  subtitle:
+                      'Attendance, grades, reminders, and secure school communication.',
+                  trailing: AppButton(
+                    label: 'Refresh',
+                    icon: Icons.refresh,
+                    onPressed: _refreshDashboard,
+                    size: AppButtonSize.sm,
+                  ),
                 ),
-                MetricCard(
-                  label: 'Grade average',
-                  value: '$gradeAverage%',
-                  icon: Icons.school_outlined,
-                  color: Colors.teal,
-                  trend: '+5%',
-                  detail: 'Term 2 performance',
+                const SizedBox(height: AppSpacing.lg),
+                DashboardGrid(
+                  children: [
+                    KPIStatCard(
+                      label: 'Child attendance',
+                      value: '$attendancePercent%',
+                      icon: Icons.how_to_reg_outlined,
+                      color: colorScheme.primary,
+                      trend: '+3%',
+                      detail: 'Present today at 8:04 AM',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Grade average',
+                      value: '$gradeAverage%',
+                      icon: Icons.school_outlined,
+                      color: Colors.teal,
+                      trend: '+5%',
+                      detail: 'Term 2 performance',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Fee reminders',
+                      value: '${_dashboard['feeReminders'] ?? 1}',
+                      icon: Icons.currency_rupee,
+                      color: Colors.deepOrange,
+                      detail: 'Transport fee due Friday',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Notifications',
+                      value: '${_notifications.length}',
+                      icon: Icons.notifications_none,
+                      color: Colors.indigo,
+                      detail: 'Latest school updates',
+                      isLoading: _loading,
+                    ),
+                  ],
                 ),
-                MetricCard(
-                  label: 'Fee reminders',
-                  value: '${_dashboard['feeReminders'] ?? 1}',
-                  icon: Icons.currency_rupee,
-                  color: Colors.deepOrange,
-                  detail: 'Transport fee due Friday',
+                const SizedBox(height: AppSpacing.md),
+                DashboardSection(
+                  title: 'Fee payment',
+                  useGlassPanel: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Upload payment receipt so the teacher can verify it.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppButton(
+                        label: 'Upload fee proof',
+                        icon: Icons.upload_file_outlined,
+                        onPressed: _uploadFeeProof,
+                        size: AppButtonSize.sm,
+                      ),
+                    ],
+                  ),
                 ),
-                MetricCard(
-                  label: 'Notifications',
-                  value: '${_notifications.length}',
-                  icon: Icons.notifications_none,
-                  color: Colors.indigo,
-                  detail: 'Latest school updates',
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'AI progress summary',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: IntelligentInsightsPanel(
+                    audience: 'parent',
+                    primaryScore: attendancePercent,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'Family dashboard layout',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: const PersonalizableDashboardStrip(
+                    items: [
+                      DashboardWidgetItem(
+                        id: 'weekly-summary',
+                        title: 'Weekly learning summary',
+                        subtitle:
+                            'Attendance, grades, homework, and suggestions.',
+                        icon: Icons.auto_stories_outlined,
+                        color: Colors.indigo,
+                      ),
+                      DashboardWidgetItem(
+                        id: 'attendance-score',
+                        title: 'Consistency score',
+                        subtitle: 'Arrival regularity and absence prediction.',
+                        icon: Icons.verified_user_outlined,
+                        color: Colors.teal,
+                      ),
+                      DashboardWidgetItem(
+                        id: 'improvements',
+                        title: 'Improvement suggestions',
+                        subtitle: 'Small daily actions recommended locally.',
+                        icon: Icons.tips_and_updates_outlined,
+                        color: Colors.deepOrange,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            const DashboardSection(
-              title: 'Attendance analytics',
-              child: DashboardPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AttendanceLineChart(
-                      values: [92, 95, 91, 96, 94, 97],
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['attendance']!,
+            child: DashboardSection(
+              title: 'Attendance progress',
+              useGlassPanel: false,
+              animate: false,
+              child: ParentAttendanceModule(
+                childName: childName,
+                attendancePercent: attendancePercent,
+                notifications: [
+                  for (final n in _notifications)
+                    AttendanceActivityItem(
+                      title: n.title,
+                      subtitle: n.detail,
+                      timestamp: DateTime.now(),
+                      status: n.color == Colors.teal
+                          ? AttendanceStatus.present
+                          : AttendanceStatus.unmarked,
+                      icon: n.icon,
                     ),
-                    SizedBox(height: 8),
-                    ProgressRow(
-                      label: 'This month',
-                      value: '94%',
-                      percent: 0.94,
-                    ),
-                    ProgressRow(
-                      label: 'On-time arrivals',
-                      value: '88%',
-                      percent: 0.88,
-                    ),
-                  ],
-                ),
+                ],
+                onRefresh: _refreshDashboard,
               ),
             ),
-            DashboardSection(
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['grades']!,
+            child: DashboardSection(
               title: loc.grades,
-              action: TextButton.icon(
+              action: AppButton(
+                label: 'Update',
+                icon: Icons.refresh,
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.sm,
                 onPressed: _loadGrades,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Update'),
               ),
-              child: DashboardPanel(
-                child: Column(
-                  children: [
-                    if (grades.isEmpty)
+              useGlassPanel: false,
+              child: Column(
+                children: [
+                  if (grades.isEmpty)
+                    ProgressRow(
+                      label: 'Mathematics',
+                      value: '91%',
+                      percent: 0.91,
+                      color: colorScheme.primary,
+                    )
+                  else
+                    for (var i = 0; i < grades.length; i++)
                       ProgressRow(
-                        label: 'Mathematics',
-                        value: '91%',
-                        percent: 0.91,
-                        color: colorScheme.primary,
-                      )
-                    else
-                      for (var i = 0; i < grades.length; i++)
-                        ProgressRow(
-                          label: grades[i]['subject']?.toString() ?? 'Subject',
-                          value:
-                              '${(_gradePercent(grades[i]) * 100).round()}%',
-                          percent: _gradePercent(grades[i]),
-                          color: [
-                            colorScheme.primary,
-                            Colors.teal,
-                            Colors.indigo,
-                            Colors.deepOrange,
-                          ][i % 4],
-                        ),
-                  ],
-                ),
+                        label: grades[i]['subject']?.toString() ?? 'Subject',
+                        value: '${(_gradePercent(grades[i]) * 100).round()}%',
+                        percent: _gradePercent(grades[i]),
+                        color: [
+                          colorScheme.primary,
+                          Colors.teal,
+                          Colors.indigo,
+                          Colors.deepOrange,
+                        ][i % 4],
+                      ),
+                ],
               ),
             ),
-            DashboardSection(
+          ),
+          ShellSection(
+            sectionKey: GlobalKey(),
+            child: DashboardSection(
+              title: 'Progress trends',
+              useGlassPanel: false,
+              animate: false,
+              child: const PremiumAnalyticsPanel(
+                title: 'Attendance and grade trajectory',
+                values: [78, 81, 86, 84, 89, 91, 94],
+              ),
+            ),
+          ),
+          ShellSection(
+            sectionKey: GlobalKey(),
+            child: DashboardSection(
+              title: 'Media gallery',
+              useGlassPanel: false,
+              animate: false,
+              child: const MediaExperiencePanel(),
+            ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['homework']!,
+            child: DashboardSection(
               title: loc.homework,
-              child: DashboardPanel(
-                child: NotificationList(
-                  items: homework.isEmpty
-                      ? const [
-                          DashboardNotification(
-                            title: 'Math practice',
-                            detail: 'Solve exercise 5 from chapter 2',
-                            icon: Icons.assignment_outlined,
-                            color: Colors.indigo,
-                            time: 'Demo',
-                          ),
-                        ]
-                      : [
-                          for (final item in homework)
-                            DashboardNotification(
-                              title: item['title']?.toString() ?? 'Homework',
-                              detail: item['description']?.toString() ?? '',
-                              icon: Icons.assignment_outlined,
-                              color: Colors.indigo,
-                              time: _shortTime(item['created_at']?.toString()),
-                            ),
-                        ],
-                ),
-              ),
+              useGlassPanel: false,
+              animate: false,
+              child: const ParentCommunicationModule(initialTab: 1),
             ),
-            DashboardSection(
-              title: 'Notifications',
-              action: TextButton.icon(
-                onPressed: _refreshDashboard,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh'),
-              ),
-              child: DashboardPanel(
-                child: NotificationList(
-                  items: _notifications,
-                ),
-              ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['messages']!,
+            child: DashboardSection(
+              title: 'Notices & ${loc.chat}',
+              useGlassPanel: false,
+              animate: false,
+              child: const ParentCommunicationModule(initialTab: 2),
             ),
-            DashboardSection(
-              title: 'Fee payment',
-              child: DashboardPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Upload payment receipt so the teacher can verify it.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: _uploadFeeProof,
-                      icon: const Icon(Icons.upload_file_outlined),
-                      label: const Text('Upload fee proof'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            DashboardSection(
-              title: loc.chat,
-              child: DashboardPanel(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                      child: Row(
-                        children: [
-                          Icon(Icons.lock_outline, color: colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Encrypted parent-teacher messaging',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    SizedBox(
-                      height: 220,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: _messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = _messages[index];
-                          final isMe = msg.startsWith('Me:');
-                          return Align(
-                            alignment: isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 320),
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 9,
-                                horizontal: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isMe
-                                    ? colorScheme.primaryContainer
-                                    : colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(msg),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              decoration: const InputDecoration(
-                                hintText: 'Type a message',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            tooltip: 'Refresh chat',
-                            onPressed: _loadChat,
-                            icon: const Icon(Icons.refresh),
-                          ),
-                          IconButton.filled(
-                            tooltip: 'Send message',
-                            onPressed: _sendMessage,
-                            icon: const Icon(Icons.send),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+        ],
       ),
     );
   }

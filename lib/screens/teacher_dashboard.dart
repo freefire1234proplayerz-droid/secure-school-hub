@@ -1,7 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -9,8 +7,20 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/dashboard/dashboard_components.dart';
-import '../widgets/language_toggle.dart';
+import '../services/frontend_experience_service.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/dashboard/dashboard_components.dart' hide DashboardSection;
+import '../widgets/dashboard/dashboard_grid.dart';
+import '../widgets/dashboard/dashboard_section.dart';
+import '../widgets/dashboard/empty_state.dart';
+import '../widgets/dashboard/kpi_stat_card.dart';
+import '../widgets/dashboard/quick_action_card.dart';
+import '../widgets/design_system/app_button.dart';
+import '../widgets/design_system/glass_card.dart';
+import '../widgets/attendance/teacher_attendance_module.dart';
+import '../widgets/communication/teacher_communication_module.dart';
+import '../widgets/experience/production_experience.dart';
+import '../widgets/shell/app_shell.dart';
 import 'login_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
@@ -24,11 +34,11 @@ class TeacherDashboard extends StatefulWidget {
 
 class _TeacherDashboardState extends State<TeacherDashboard> {
   final ApiService _api = ApiService();
-  final TextEditingController _messageController = TextEditingController();
-  bool _scanning = false;
-  String _status = 'Ready for today';
+  bool _loading = true;
+  final _attendanceModuleKey = GlobalKey<TeacherAttendanceModuleState>();
+  final _communicationModuleKey = GlobalKey<TeacherCommunicationModuleState>();
+  int _selectedNav = 0;
   List<Map<String, dynamic>> _students = [];
-  List<String> _chatMessages = [];
   List<DashboardNotification> _feedNotifications = [];
   Map<String, dynamic> _attendanceSummary = {
     'totalStudents': 42,
@@ -44,16 +54,21 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     },
   };
 
+  final _sectionKeys = <String, GlobalKey>{
+    for (final id in [
+      'overview',
+      'attendance',
+      'students',
+      'actions',
+      'messages',
+    ])
+      id: GlobalKey(),
+  };
+
   @override
   void initState() {
     super.initState();
     _refreshAll();
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
   }
 
   String _formatError(Object e) {
@@ -106,6 +121,32 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }).toList();
   }
 
+  List<ShellNotification> _shellNotifications() {
+    if (_feedNotifications.isEmpty) {
+      return const [
+        ShellNotification(
+          id: 'inbox',
+          title: 'Waiting for parent activity',
+          body: 'Messages, fee proofs, and attendance alerts appear here.',
+          icon: Icons.inbox_outlined,
+          color: Colors.blueGrey,
+          time: 'Now',
+        ),
+      ];
+    }
+    return [
+      for (var i = 0; i < _feedNotifications.length; i++)
+        ShellNotification(
+          id: 'feed-$i',
+          title: _feedNotifications[i].title,
+          body: _feedNotifications[i].detail,
+          icon: _feedNotifications[i].icon,
+          color: _feedNotifications[i].color,
+          time: _feedNotifications[i].time,
+        ),
+    ];
+  }
+
   String _shortTime(String? raw) {
     if (raw == null) return 'Now';
     final parsed = DateTime.tryParse(raw);
@@ -114,28 +155,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _loadChat() async {
-    try {
-      final res = await _api.get('/chat/history');
-      final rows = List<Map<String, dynamic>>.from(
-        res.data['messages'] as List<dynamic>? ?? [],
-      );
-      if (!mounted) return;
-      setState(() {
-        _chatMessages = rows
-            .map((m) {
-              final who = m['senderRole'] == 'teacher' ? 'Me' : 'Parent';
-              return '$who: ${m['body']}';
-            })
-            .toList();
-      });
-    } catch (_) {
-      // Chat stays empty until backend is reachable.
-    }
-  }
-
   Future<void> _refreshAll() async {
-    await Future.wait([_loadAttendanceDemo(), _loadChat()]);
+    setState(() => _loading = true);
+    await _loadAttendanceDemo();
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadAttendanceDemo() async {
@@ -170,21 +193,27 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   Future<void> _markAttendance(String qrData) async {
-    setState(() => _status = 'Marking attendance...');
     try {
       final res = await _api.post('/attendance/mark', data: {'qr': qrData});
       final student = res.data['student'] as Map<String, dynamic>?;
       final status = res.data['status']?.toString() == 'already_marked'
           ? 'already marked present'
           : 'marked present';
-      setState(() {
-        _status = student == null
+      if (!mounted) return;
+      _showSnack(
+        student == null
             ? 'Attendance marked'
-            : '${student['name']} $status. Parent notification triggered.';
-      });
+            : '${student['name']} $status. Parent notification triggered.',
+      );
       await _refreshAll();
     } catch (e) {
-      setState(() => _status = 'Attendance failed: ${_formatError(e)}');
+      if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.attendance,
+        title: 'Offline attendance mark',
+        payload: {'qr': qrData},
+      );
+      _showSnack('Attendance failed: ${_formatError(e)}', isError: true);
     }
   }
 
@@ -199,17 +228,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.noticeDraft,
+        title: 'Offline homework draft',
+        payload: const {
+          'title': 'Math practice',
+          'description': 'Solve exercise 5 from chapter 2',
+        },
+      );
       _showSnack('Failed: ${_formatError(e)}', isError: true);
     }
-  }
-
-  Future<void> _takeAttendancePhoto() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera);
-    if (image == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Attendance photo captured.')),
-    );
   }
 
   Future<void> _attachHomeworkFile() async {
@@ -227,6 +255,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.upload,
+        title: 'Offline homework attachment: ${file.name}',
+        payload: {'fileName': file.name, 'size': file.size},
+      );
       _showSnack('Attach failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -245,6 +278,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.upload,
+        title: 'Offline fee attachment: ${file.name}',
+        payload: {'fileName': file.name, 'size': file.size},
+      );
       _showSnack('Attach failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -260,43 +298,23 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.noticeDraft,
+        title: 'Offline fee reminder',
+        payload: const {'amount': 5000, 'currency': 'INR'},
+      );
       _showSnack('Failed: ${_formatError(e)}', isError: true);
     }
   }
 
   Future<void> _runInfrastructureCheck() async {
-    setState(() => _status = 'Requesting infrastructure health check...');
     try {
-      final res = await _api.post('/security/scan', data: {'target': '127.0.0.1'});
-      final result = res.data['result']?.toString() ??
-          res.data['status']?.toString() ??
-          'Health check complete';
-      setState(() => _status = result);
+      await _api.post('/security/scan', data: {'target': '127.0.0.1'});
       if (!mounted) return;
       _showSnack('Infrastructure health check completed.');
     } catch (e) {
-      setState(() => _status = 'Health check failed: ${_formatError(e)}');
       if (!mounted) return;
       _showSnack('Health check failed: ${_formatError(e)}', isError: true);
-    }
-  }
-
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    setState(() {
-      _chatMessages.add('Me: $text');
-      _messageController.clear();
-    });
-
-    try {
-      await _api.post('/chat/send', data: {'message': text});
-      await _loadChat();
-      await _loadAttendanceDemo();
-    } catch (e) {
-      if (!mounted) return;
-      _showSnack('Send failed: ${_formatError(e)}', isError: true);
     }
   }
 
@@ -310,170 +328,210 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     final classOverview =
         Map<String, dynamic>.from(_dashboard['classOverview'] as Map);
 
-    return Focus(
-      autofocus: true,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(loc.teacher),
-          actions: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Center(child: LanguageToggle()),
-            ),
-            IconButton(
-              tooltip: 'Logout',
-              onPressed: _logout,
-              icon: const Icon(Icons.logout),
-            ),
-          ],
+    return AppShell(
+      title: 'Teacher Workspace',
+      navItems: ShellNavConfig.teacher,
+      selectedIndex: _selectedNav,
+      onNavSelected: (i) => setState(() => _selectedNav = i),
+      sectionKeys: _sectionKeys,
+      notifications: _shellNotifications(),
+      onLogout: _logout,
+      onRefresh: _refreshAll,
+      isLoading: _loading,
+      quickActions: [
+        ShellQuickAction(
+          label: loc.scanQr,
+          icon: Icons.qr_code_scanner,
+          onTap: () => _attendanceModuleKey.currentState?.openQrScanner(),
         ),
-        body: DashboardShell(
-          title: 'Class 8A Command Center',
-          subtitle:
-              'QR attendance, homework, reminders, and class health in one workspace.',
-          trailing: FilledButton.icon(
-            onPressed: () => setState(() => _scanning = true),
-            icon: const Icon(Icons.qr_code_scanner),
-            label: Text(loc.scanQr),
-          ),
-          children: [
-            ResponsiveGrid(
+        ShellQuickAction(
+          label: 'Assign homework',
+          icon: Icons.post_add_outlined,
+          onTap: _createHomework,
+        ),
+        ShellQuickAction(
+          label: 'Fee reminder',
+          icon: Icons.currency_rupee,
+          onTap: _sendFeeReminder,
+        ),
+      ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ShellSection(
+            sectionKey: _sectionKeys['overview']!,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MetricCard(
-                  label: 'Students present',
-                  value: '$presentToday / $totalStudents',
-                  icon: Icons.groups_2_outlined,
-                  color: colorScheme.primary,
-                  trend: '+4%',
-                  detail: 'Morning session synced',
+                DashboardPageHeader(
+                  title: 'Class 8A Command Center',
+                  subtitle:
+                      'QR attendance, homework, reminders, and class health in one workspace.',
+                  trailing: AppButton(
+                    label: loc.scanQr,
+                    icon: Icons.qr_code_scanner,
+                    onPressed: () =>
+                        _attendanceModuleKey.currentState?.openQrScanner(),
+                    size: AppButtonSize.sm,
+                  ),
                 ),
-                const MetricCard(
-                  label: 'Attendance',
-                  value: '90.4%',
-                  icon: Icons.fact_check_outlined,
-                  color: Colors.teal,
-                  trend: '+2.1%',
-                  detail: 'Weekly average',
+                const SizedBox(height: AppSpacing.lg),
+                DashboardGrid(
+                  children: [
+                    KPIStatCard(
+                      label: 'Students present',
+                      value: '$presentToday / $totalStudents',
+                      icon: Icons.groups_2_outlined,
+                      color: colorScheme.primary,
+                      trend: '+4%',
+                      detail: 'Morning session synced',
+                      isLoading: _loading,
+                    ),
+                    const KPIStatCard(
+                      label: 'Attendance',
+                      value: '90.4%',
+                      icon: Icons.fact_check_outlined,
+                      color: Colors.teal,
+                      trend: '+2.1%',
+                      detail: 'Weekly average',
+                    ),
+                    KPIStatCard(
+                      label: 'Live QR attendance',
+                      value: '$attendancePercent%',
+                      icon: Icons.qr_code_scanner,
+                      color: Colors.green,
+                      detail: 'From today\'s QR marks',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Homework sent',
+                      value: '${_dashboard['homeworkSent'] ?? 3}',
+                      icon: Icons.assignment_outlined,
+                      color: Colors.deepOrange,
+                      detail: '2 checked, 1 due tomorrow',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Parent alerts',
+                      value: '${_dashboard['parentAlerts'] ?? 7}',
+                      icon: Icons.notifications_active_outlined,
+                      color: Colors.indigo,
+                      detail: 'Auto alerts ready',
+                      isLoading: _loading,
+                    ),
+                  ],
                 ),
-                MetricCard(
-                  label: 'Live QR attendance',
-                  value: '$attendancePercent%',
-                  icon: Icons.qr_code_scanner,
-                  color: Colors.green,
-                  detail: 'From today\'s QR marks',
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'Class stats',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: Column(
+                    children: [
+                      ProgressRow(
+                        label: 'Class 8A attendance',
+                        value: '$attendancePercent%',
+                        percent: (attendancePercent / 100).clamp(0, 1),
+                      ),
+                      ProgressRow(
+                        label: 'Homework completion',
+                        value: '${classOverview['homeworkCompletion'] ?? 76}%',
+                        percent:
+                            (((classOverview['homeworkCompletion'] as num?) ??
+                                        76) /
+                                    100)
+                                .clamp(0, 1),
+                      ),
+                      ProgressRow(
+                        label: 'Fee follow-up closed',
+                        value: '${classOverview['feeFollowupClosed'] ?? 68}%',
+                        percent:
+                            (((classOverview['feeFollowupClosed'] as num?) ??
+                                        68) /
+                                    100)
+                                .clamp(0, 1),
+                      ),
+                    ],
+                  ),
                 ),
-                MetricCard(
-                  label: 'Homework sent',
-                  value: '${_dashboard['homeworkSent'] ?? 3}',
-                  icon: Icons.assignment_outlined,
-                  color: Colors.deepOrange,
-                  detail: '2 checked, 1 due tomorrow',
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'AI class insights',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: IntelligentInsightsPanel(
+                    audience: 'teacher',
+                    primaryScore: (attendancePercent as num).toInt(),
+                  ),
                 ),
-                MetricCard(
-                  label: 'Parent alerts',
-                  value: '${_dashboard['parentAlerts'] ?? 7}',
-                  icon: Icons.notifications_active_outlined,
-                  color: Colors.indigo,
-                  detail: 'Auto alerts ready',
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'Personalized workspace',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: const PersonalizableDashboardStrip(
+                    items: [
+                      DashboardWidgetItem(
+                        id: 'risk',
+                        title: 'Attendance risk watchlist',
+                        subtitle: 'Pinned students with two missed mornings.',
+                        icon: Icons.warning_amber_outlined,
+                        color: Colors.deepOrange,
+                      ),
+                      DashboardWidgetItem(
+                        id: 'engagement',
+                        title: 'Class engagement',
+                        subtitle: 'Live opens, replies, and homework activity.',
+                        icon: Icons.forum_outlined,
+                        color: Colors.teal,
+                      ),
+                      DashboardWidgetItem(
+                        id: 'homework',
+                        title: 'Homework completion',
+                        subtitle: 'Trend comparison by subject.',
+                        icon: Icons.assignment_turned_in_outlined,
+                        color: Colors.indigo,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            DashboardSection(
-              title: loc.attendance,
-              child: DashboardPanel(
-                child: _scanning
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Scan student QR',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w800),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Close scanner',
-                                onPressed: () =>
-                                    setState(() => _scanning = false),
-                                icon: const Icon(Icons.close),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              height: 260,
-                              child: MobileScanner(
-                                onDetect: (capture) {
-                                  final barcode = capture.barcodes.firstOrNull;
-                                  if (barcode?.rawValue != null) {
-                                    setState(() => _scanning = false);
-                                    _markAttendance(barcode!.rawValue!);
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const AttendanceLineChart(
-                            values: [88, 91, 86, 93, 90, 95],
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              FilledButton.icon(
-                                onPressed: () =>
-                                    setState(() => _scanning = true),
-                                icon: const Icon(Icons.qr_code_scanner),
-                                label: Text(loc.scanQr),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _takeAttendancePhoto,
-                                icon: const Icon(Icons.camera_alt_outlined),
-                                label: const Text('Class photo'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _status,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-              ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['attendance']!,
+            child: DashboardSection(
+              title: "Today's classes — ${loc.attendance}",
+              useGlassPanel: false,
+              animate: false,
+              child: TeacherAttendanceModule(key: _attendanceModuleKey),
             ),
-            DashboardSection(
-              title: 'Student QR codes',
-              action: TextButton.icon(
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['students']!,
+            child: DashboardSection(
+              title: 'Student quick access',
+              action: AppButton(
+                label: 'Refresh',
+                icon: Icons.refresh,
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.sm,
                 onPressed: _loadAttendanceDemo,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh'),
               ),
+              useGlassPanel: false,
               child: _students.isEmpty
-                  ? const DashboardPanel(
-                      child: Text(
-                        'Login as teacher to load demo student QR codes.',
-                      ),
+                  ? DashboardEmptyState(
+                      icon: Icons.groups_2_outlined,
+                      title: 'No students loaded',
+                      message:
+                          'Login as teacher to load demo student QR codes.',
+                      compact: true,
                     )
-                  : ResponsiveGrid(
+                  : DashboardGrid(
                       minItemWidth: 250,
                       children: [
                         for (final student in _students)
-                          DashboardPanel(
+                          GlassCard(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -481,10 +539,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(8),
+                                      padding: const EdgeInsets.all(
+                                        AppSpacing.xs,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: AppSpacing.borderRadiusSm,
                                       ),
                                       child: QrImageView(
                                         data:
@@ -493,7 +553,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                                         size: 86,
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: AppSpacing.sm),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -524,13 +584,15 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                                FilledButton.icon(
+                                const SizedBox(height: AppSpacing.sm),
+                                AppButton(
+                                  label: 'Mark present',
+                                  icon: Icons.how_to_reg_outlined,
                                   onPressed: () => _markAttendance(
                                     student['qrPayload'].toString(),
                                   ),
-                                  icon: const Icon(Icons.how_to_reg_outlined),
-                                  label: const Text('Mark present'),
+                                  size: AppButtonSize.sm,
+                                  expand: true,
                                 ),
                               ],
                             ),
@@ -538,190 +600,84 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                       ],
                     ),
             ),
-            DashboardSection(
-              title: 'Quick actions',
-              child: ResponsiveGrid(
-                minItemWidth: 260,
-                children: [
-                  ActionTile(
-                    label: 'Assign homework',
-                    description: 'Send task and queue offline sync',
-                    icon: Icons.post_add_outlined,
-                    onTap: _createHomework,
-                  ),
-                  ActionTile(
-                    label: 'Attach homework file',
-                    description: 'Upload worksheet, PDF, or image',
-                    icon: Icons.attach_file,
-                    onTap: _attachHomeworkFile,
-                  ),
-                  ActionTile(
-                    label: 'Send fee reminder',
-                    description: 'Trigger payment reminder workflow',
-                    icon: Icons.currency_rupee,
-                    onTap: _sendFeeReminder,
-                  ),
-                  ActionTile(
-                    label: 'Infrastructure health',
-                    description: 'Basic server-side health monitoring',
-                    icon: Icons.health_and_safety_outlined,
-                    onTap: _runInfrastructureCheck,
-                  ),
-                  ActionTile(
-                    label: 'Upload fee proof',
-                    description: 'Attach receipt or payment evidence',
-                    icon: Icons.receipt_long_outlined,
-                    onTap: _attachFeeFile,
-                  ),
-                ],
-              ),
-            ),
-            DashboardSection(
-              title: 'Class stats',
-              child: DashboardPanel(
-                child: Column(
-                  children: [
-                    ProgressRow(
-                      label: 'Class 8A attendance',
-                      value: '$attendancePercent%',
-                      percent: (attendancePercent / 100).clamp(0, 1),
-                    ),
-                    ProgressRow(
-                      label: 'Homework completion',
-                      value: '${classOverview['homeworkCompletion'] ?? 76}%',
-                      percent:
-                          (((classOverview['homeworkCompletion'] as num?) ??
-                                      76) /
-                                  100)
-                              .clamp(0, 1),
-                    ),
-                    ProgressRow(
-                      label: 'Fee follow-up closed',
-                      value: '${classOverview['feeFollowupClosed'] ?? 68}%',
-                      percent: (((classOverview['feeFollowupClosed'] as num?) ??
-                                  68) /
-                              100)
-                          .clamp(0, 1),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            DashboardSection(
-              title: 'Parent updates',
-              action: TextButton.icon(
-                onPressed: _refreshAll,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh'),
-              ),
-              child: DashboardPanel(
-                child: NotificationList(
-                  items: _feedNotifications.isEmpty
-                      ? const [
-                          DashboardNotification(
-                            title: 'Waiting for parent activity',
-                            detail:
-                                'Messages, fee proofs, and attendance alerts appear here.',
-                            icon: Icons.inbox_outlined,
-                            color: Colors.blueGrey,
-                            time: 'Now',
-                          ),
-                        ]
-                      : _feedNotifications,
-                ),
-              ),
-            ),
-            DashboardSection(
-              title: 'Parent chat',
-              child: DashboardPanel(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                      child: Row(
-                        children: [
-                          Icon(Icons.lock_outline, color: colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Encrypted parent-teacher messaging',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Refresh chat',
-                            onPressed: _loadChat,
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ],
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['actions']!,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DashboardSection(
+                  title: 'Quick actions',
+                  useGlassPanel: false,
+                  child: DashboardGrid(
+                    minItemWidth: 260,
+                    children: [
+                      QuickActionCard(
+                        label: 'Assign homework',
+                        description: 'Send task and queue offline sync',
+                        icon: Icons.post_add_outlined,
+                        onTap: _createHomework,
                       ),
-                    ),
-                    const Divider(height: 1),
-                    SizedBox(
-                      height: 220,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: _chatMessages.length,
-                        itemBuilder: (context, index) {
-                          final msg = _chatMessages[index];
-                          final isMe = msg.startsWith('Me:');
-                          return Align(
-                            alignment: isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 320),
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 9,
-                                horizontal: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isMe
-                                    ? colorScheme.primaryContainer
-                                    : colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(msg),
-                            ),
-                          );
-                        },
+                      QuickActionCard(
+                        label: 'Attach homework file',
+                        description: 'Upload worksheet, PDF, or image',
+                        icon: Icons.attach_file,
+                        onTap: _attachHomeworkFile,
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              decoration: const InputDecoration(
-                                hintText: 'Message parents',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onSubmitted: (_) => _sendMessage(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton.filled(
-                            tooltip: 'Send message',
-                            onPressed: _sendMessage,
-                            icon: const Icon(Icons.send),
-                          ),
-                        ],
+                      QuickActionCard(
+                        label: 'Send fee reminder',
+                        description: 'Trigger payment reminder workflow',
+                        icon: Icons.currency_rupee,
+                        onTap: _sendFeeReminder,
                       ),
-                    ),
-                  ],
+                      QuickActionCard(
+                        label: 'Infrastructure health',
+                        description: 'Basic server-side health monitoring',
+                        icon: Icons.health_and_safety_outlined,
+                        onTap: _runInfrastructureCheck,
+                      ),
+                      QuickActionCard(
+                        label: 'Upload fee proof',
+                        description: 'Attach receipt or payment evidence',
+                        icon: Icons.receipt_long_outlined,
+                        onTap: _attachFeeFile,
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'Files, exports & reports',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: const MediaExperiencePanel(),
+                ),
+              ],
+            ),
+          ),
+          ShellSection(
+            sectionKey: GlobalKey(),
+            child: DashboardSection(
+              title: 'Interactive analytics',
+              useGlassPanel: false,
+              animate: false,
+              child: const PremiumAnalyticsPanel(
+                title: 'Attendance and homework momentum',
+                values: [82, 86, 84, 90, 88, 93, 91],
               ),
             ),
-          ],
-        ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['messages']!,
+            child: DashboardSection(
+              title: 'Notices & communication',
+              useGlassPanel: false,
+              animate: false,
+              child: TeacherCommunicationModule(key: _communicationModuleKey),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+        ],
       ),
     );
   }

@@ -1,8 +1,8 @@
 import 'package:hive/hive.dart';
 
 class LocalDb {
-  static const String authBoxName = 'authBox';
-  static const String cacheBoxName = 'cacheBox';
+  static const String authBoxName = 'authBox_v2';
+static const String cacheBoxName = 'cacheBox_v2';
 
   static late Box _authBox;
   static late Box _cacheBox;

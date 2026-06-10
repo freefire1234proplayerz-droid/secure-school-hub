@@ -7,7 +7,7 @@ class ApiService {
     BaseOptions(
       baseUrl: const String.fromEnvironment(
         'API_BASE_URL',
-        defaultValue: 'https://secure-school-hub-api.onrender.com/api',
+        defaultValue: 'http://localhost:4000/api',
       ),
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 20),
