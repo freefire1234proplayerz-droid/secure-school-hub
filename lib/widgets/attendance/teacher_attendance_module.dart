@@ -22,7 +22,8 @@ class TeacherAttendanceModule extends StatefulWidget {
   const TeacherAttendanceModule({super.key});
 
   @override
-  State<TeacherAttendanceModule> createState() => TeacherAttendanceModuleState();
+  State<TeacherAttendanceModule> createState() =>
+      TeacherAttendanceModuleState();
 }
 
 class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
@@ -46,7 +47,7 @@ class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
   String _selectedSubject = 'Mathematics';
   DateTime _selectedDate = DateTime.now();
   AttendanceStatus? _statusFilter;
-  List<ScanHistoryEntry> _scanHistory = [];
+  final List<ScanHistoryEntry> _scanHistory = [];
 
   final _classes = const ['Class 8A', 'Class 8B', 'Class 9A'];
   final _subjects = const ['Mathematics', 'Science', 'English'];
@@ -218,9 +219,8 @@ class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
   }
 
   Future<void> _saveManualAttendance() async {
-    final toMark = _students
-        .where((s) => s.status == AttendanceStatus.present)
-        .toList();
+    final toMark =
+        _students.where((s) => s.status == AttendanceStatus.present).toList();
     if (toMark.isEmpty) return;
 
     setState(() {
@@ -267,14 +267,14 @@ class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
           onSubjectChanged: (v) => setState(() => _selectedSubject = v),
           selectedDate: _selectedDate,
           onDateChanged: (d) => setState(() => _selectedDate = d),
-          sessionStatus: 'Session active • ${_presentCount}/$_total marked',
+          sessionStatus: 'Session active • $_presentCount/$_total marked',
         ),
         const SizedBox(height: AppSpacing.md),
         DashboardGrid(
           minItemWidth: 160,
           children: [
-            AttendanceSessionCard(
-              session: const AttendanceSessionInfo(
+            const AttendanceSessionCard(
+              session: AttendanceSessionInfo(
                 label: 'Morning assembly',
                 startTime: '08:00',
                 endTime: '08:30',
@@ -292,8 +292,8 @@ class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
               ),
               isSelected: true,
             ),
-            AttendanceSessionCard(
-              session: const AttendanceSessionInfo(
+            const AttendanceSessionCard(
+              session: AttendanceSessionInfo(
                 label: 'Afternoon lab',
                 startTime: '13:00',
                 endTime: '14:00',
@@ -308,10 +308,22 @@ class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
           scrollDirection: Axis.horizontal,
           child: SegmentedButton<int>(
             segments: const [
-              ButtonSegment(value: 0, label: Text('Overview'), icon: Icon(Icons.dashboard_outlined, size: 16)),
-              ButtonSegment(value: 1, label: Text('QR Scan'), icon: Icon(Icons.qr_code_scanner, size: 16)),
-              ButtonSegment(value: 2, label: Text('Manual'), icon: Icon(Icons.edit_note_outlined, size: 16)),
-              ButtonSegment(value: 3, label: Text('Analytics'), icon: Icon(Icons.insights_outlined, size: 16)),
+              ButtonSegment(
+                  value: 0,
+                  label: Text('Overview'),
+                  icon: Icon(Icons.dashboard_outlined, size: 16)),
+              ButtonSegment(
+                  value: 1,
+                  label: Text('QR Scan'),
+                  icon: Icon(Icons.qr_code_scanner, size: 16)),
+              ButtonSegment(
+                  value: 2,
+                  label: Text('Manual'),
+                  icon: Icon(Icons.edit_note_outlined, size: 16)),
+              ButtonSegment(
+                  value: 3,
+                  label: Text('Analytics'),
+                  icon: Icon(Icons.insights_outlined, size: 16)),
             ],
             selected: {_selectedTab},
             onSelectionChanged: (s) => setState(() => _selectedTab = s.first),
@@ -320,47 +332,47 @@ class TeacherAttendanceModuleState extends State<TeacherAttendanceModule> {
         const SizedBox(height: AppSpacing.md),
         switch (_selectedTab) {
           0 => _OverviewTab(
-                loading: _loading,
-                present: _presentCount,
-                absent: _absentCount,
-                late: _lateCount,
-                total: _total,
-                percent: percent,
-                weekly: weekly,
-                classSummaries: _classSummaries,
-                heatmap: _heatmapData,
-                activity: _activityItems,
-                onRefresh: _loadData,
-              ),
+              loading: _loading,
+              present: _presentCount,
+              absent: _absentCount,
+              late: _lateCount,
+              total: _total,
+              percent: percent,
+              weekly: weekly,
+              classSummaries: _classSummaries,
+              heatmap: _heatmapData,
+              activity: _activityItems,
+              onRefresh: _loadData,
+            ),
           1 => _QrTab(onOpenScanner: _openQrScanner),
           2 => _ManualTab(
-                loading: _loading,
-                saving: _saving,
-                saveProgress: _saveProgress,
-                searchController: _searchController,
-                students: _filteredStudents,
-                allStudents: _students,
-                statusFilter: _statusFilter,
-                onStatusFilterChanged: (f) => setState(() => _statusFilter = f),
-                onSearchChanged: (_) => setState(() {}),
-                onBulkPresent: () => _setBulkStatus(AttendanceStatus.present),
-                onBulkAbsent: () => _setBulkStatus(AttendanceStatus.absent),
-                onBulkLate: () => _setBulkStatus(AttendanceStatus.late),
-                onStatusChanged: (index, status) {
-                  final student = _filteredStudents[index];
-                  final idx = _students.indexWhere((s) => s.id == student.id);
-                  if (idx >= 0) setState(() => _students[idx].status = status);
-                },
-                onSave: _saveManualAttendance,
-              ),
+              loading: _loading,
+              saving: _saving,
+              saveProgress: _saveProgress,
+              searchController: _searchController,
+              students: _filteredStudents,
+              allStudents: _students,
+              statusFilter: _statusFilter,
+              onStatusFilterChanged: (f) => setState(() => _statusFilter = f),
+              onSearchChanged: (_) => setState(() {}),
+              onBulkPresent: () => _setBulkStatus(AttendanceStatus.present),
+              onBulkAbsent: () => _setBulkStatus(AttendanceStatus.absent),
+              onBulkLate: () => _setBulkStatus(AttendanceStatus.late),
+              onStatusChanged: (index, status) {
+                final student = _filteredStudents[index];
+                final idx = _students.indexWhere((s) => s.id == student.id);
+                if (idx >= 0) setState(() => _students[idx].status = status);
+              },
+              onSave: _saveManualAttendance,
+            ),
           3 => AttendanceAnalyticsPanel(
-                attendancePercent: percent,
-                weeklyTrend: weekly,
-                lowAttendanceStudents: [
-                  for (final s in _students.take(3))
-                    (name: s.name, percent: 72 + s.id % 20),
-                ],
-              ),
+              attendancePercent: percent,
+              weeklyTrend: weekly,
+              lowAttendanceStudents: [
+                for (final s in _students.take(3))
+                  (name: s.name, percent: 72 + s.id % 20),
+              ],
+            ),
           _ => const SizedBox.shrink(),
         },
       ],
@@ -400,110 +412,110 @@ class _OverviewTab extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  "Today's attendance",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ),
-              AppButton(
-                label: 'Refresh',
-                icon: Icons.refresh,
-                variant: AppButtonVariant.ghost,
-                size: AppButtonSize.sm,
-                onPressed: onRefresh,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          DashboardGrid(
-            children: [
-              AttendanceStatCard(
-                label: 'Present',
-                value: '$present',
-                icon: Icons.check_circle_outline,
-                color: Colors.teal,
-                subtitle: 'Marked today',
-                isLoading: loading,
-              ),
-              AttendanceStatCard(
-                label: 'Absent',
-                value: '$absent',
-                icon: Icons.cancel_outlined,
-                color: scheme.error,
-                isLoading: loading,
-              ),
-              AttendanceStatCard(
-                label: 'Late',
-                value: '$late',
-                icon: Icons.schedule,
-                color: Colors.deepOrange,
-                isLoading: loading,
-              ),
-              AttendanceStatCard(
-                label: 'Total students',
-                value: '$total',
-                icon: Icons.groups_2_outlined,
-                color: scheme.primary,
-                isLoading: loading,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= AppBreakpoints.tablet) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: AttendanceChartCard(
-                        values: weekly,
-                        title: 'Weekly attendance trend',
-                      ),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                "Today's attendance",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: AttendanceRingChart(
-                        percent: total == 0 ? 0 : present / total,
-                        centerLabel: '${percent.round()}%',
-                        label: 'Today',
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return Column(
+              ),
+            ),
+            AppButton(
+              label: 'Refresh',
+              icon: Icons.refresh,
+              variant: AppButtonVariant.ghost,
+              size: AppButtonSize.sm,
+              onPressed: onRefresh,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        DashboardGrid(
+          children: [
+            AttendanceStatCard(
+              label: 'Present',
+              value: '$present',
+              icon: Icons.check_circle_outline,
+              color: Colors.teal,
+              subtitle: 'Marked today',
+              isLoading: loading,
+            ),
+            AttendanceStatCard(
+              label: 'Absent',
+              value: '$absent',
+              icon: Icons.cancel_outlined,
+              color: scheme.error,
+              isLoading: loading,
+            ),
+            AttendanceStatCard(
+              label: 'Late',
+              value: '$late',
+              icon: Icons.schedule,
+              color: Colors.deepOrange,
+              isLoading: loading,
+            ),
+            AttendanceStatCard(
+              label: 'Total students',
+              value: '$total',
+              icon: Icons.groups_2_outlined,
+              color: scheme.primary,
+              isLoading: loading,
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= AppBreakpoints.tablet) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AttendanceRingChart(
-                    percent: total == 0 ? 0 : present / total,
-                    centerLabel: '${percent.round()}%',
+                  Expanded(
+                    flex: 2,
+                    child: AttendanceChartCard(
+                      values: weekly,
+                      title: 'Weekly attendance trend',
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AttendanceChartCard(values: weekly),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AttendanceRingChart(
+                      percent: total == 0 ? 0 : present / total,
+                      centerLabel: '${percent.round()}%',
+                      label: 'Today',
+                    ),
+                  ),
                 ],
               );
-            },
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          DashboardSection(
-            title: 'Class-wise attendance',
-            useGlassPanel: false,
-            animate: false,
-            child: ClassAttendanceCards(classes: classSummaries),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AttendanceHeatmap(rows: heatmap),
-          const SizedBox(height: AppSpacing.lg),
-          AttendanceTimeline(items: activity),
-        ],
+            }
+            return Column(
+              children: [
+                AttendanceRingChart(
+                  percent: total == 0 ? 0 : present / total,
+                  centerLabel: '${percent.round()}%',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AttendanceChartCard(values: weekly),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        DashboardSection(
+          title: 'Class-wise attendance',
+          useGlassPanel: false,
+          animate: false,
+          child: ClassAttendanceCards(classes: classSummaries),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AttendanceHeatmap(rows: heatmap),
+        const SizedBox(height: AppSpacing.lg),
+        AttendanceTimeline(items: activity),
+      ],
     );
   }
 }
@@ -587,68 +599,69 @@ class _ManualTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
 
     return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AttendanceFilterBar(
-            searchController: searchController,
-            onSearchChanged: onSearchChanged,
-            statusFilter: statusFilter,
-            onStatusFilterChanged: onStatusFilterChanged,
-            onBulkPresent: onBulkPresent,
-            onBulkAbsent: onBulkAbsent,
-            onBulkLate: onBulkLate,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AttendanceFilterBar(
+          searchController: searchController,
+          onSearchChanged: onSearchChanged,
+          statusFilter: statusFilter,
+          onStatusFilterChanged: onStatusFilterChanged,
+          onBulkPresent: onBulkPresent,
+          onBulkAbsent: onBulkAbsent,
+          onBulkLate: onBulkLate,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (saving)
+          Column(
+            children: [
+              LinearProgressIndicator(value: saveProgress),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Saving attendance… ${(saveProgress * 100).round()}%',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          if (saving)
-            Column(
-              children: [
-                LinearProgressIndicator(value: saveProgress),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Saving attendance… ${(saveProgress * 100).round()}%',
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-            ),
-          if (loading)
-            const Center(child: CircularProgressIndicator())
-          else if (students.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(AppSpacing.xl),
-              child: Center(child: Text('No students match your filters')),
-            )
-          else if (isDesktop)
-            StudentAttendanceTable(
-              students: students,
-              onStatusChanged: onStatusChanged,
-            )
-          else
-            Column(
-              children: [
-                for (var i = 0; i < students.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                    child: StudentAttendanceTile(
-                      student: students[i],
-                      index: i,
-                      onStatusChanged: (status) => onStatusChanged(i, status),
-                    ),
+        if (loading)
+          const Center(child: CircularProgressIndicator())
+        else if (students.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Center(child: Text('No students match your filters')),
+          )
+        else if (isDesktop)
+          StudentAttendanceTable(
+            students: students,
+            onStatusChanged: onStatusChanged,
+          )
+        else
+          Column(
+            children: [
+              for (var i = 0; i < students.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: StudentAttendanceTile(
+                    student: students[i],
+                    index: i,
+                    onStatusChanged: (status) => onStatusChanged(i, status),
                   ),
-              ],
-            ),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: saving ? 'Saving…' : 'Save attendance',
-            icon: Icons.save_outlined,
-            onPressed: saving ? null : onSave,
-            isLoading: saving,
-            expand: true,
+                ),
+            ],
           ),
-        ],
+        const SizedBox(height: AppSpacing.lg),
+        AppButton(
+          label: saving ? 'Saving…' : 'Save attendance',
+          icon: Icons.save_outlined,
+          onPressed: saving ? null : onSave,
+          isLoading: saving,
+          expand: true,
+        ),
+      ],
     );
   }
 }

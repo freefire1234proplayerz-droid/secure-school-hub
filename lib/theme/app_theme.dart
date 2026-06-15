@@ -16,8 +16,7 @@ abstract final class AppTheme {
 
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    final scheme =
-        isDark ? AppColors.darkScheme() : AppColors.lightScheme();
+    final scheme = isDark ? AppColors.darkScheme() : AppColors.lightScheme();
     final textTheme = AppTextStyles.textTheme(scheme);
 
     return ThemeData(
@@ -46,9 +45,8 @@ abstract final class AppTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: isDark
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        systemOverlayStyle:
+            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         titleTextStyle: textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w700,
         ),
@@ -80,7 +78,7 @@ abstract final class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           visualDensity: VisualDensity.standard,
-          shape: RoundedRectangleBorder(
+          shape: const RoundedRectangleBorder(
             borderRadius: AppSpacing.borderRadiusSm,
           ),
         ),
@@ -126,7 +124,7 @@ abstract final class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: AppSpacing.borderRadiusMd,
         ),
         backgroundColor: isDark ? scheme.inverseSurface : scheme.inverseSurface,
@@ -157,7 +155,7 @@ abstract final class AppTheme {
         showDragHandle: true,
       ),
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: AppSpacing.borderRadiusSm,
         ),
         side: BorderSide(
@@ -170,8 +168,8 @@ abstract final class AppTheme {
         linearTrackColor: scheme.surfaceContainerHighest,
         circularTrackColor: scheme.surfaceContainerHighest,
       ),
-      listTileTheme: ListTileThemeData(
-        contentPadding: const EdgeInsets.symmetric(
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.xxs,
         ),
@@ -205,7 +203,7 @@ abstract final class AppTheme {
       ),
       elevation: 0,
       textStyle: textTheme.labelLarge,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusMd,
       ),
     ).copyWith(
@@ -233,7 +231,7 @@ abstract final class AppTheme {
       ),
       textStyle: textTheme.labelLarge,
       side: BorderSide(color: scheme.outline.withValues(alpha: 0.8)),
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusMd,
       ),
     );
@@ -250,7 +248,7 @@ abstract final class AppTheme {
         vertical: AppSpacing.xs,
       ),
       textStyle: textTheme.labelLarge?.copyWith(color: scheme.primary),
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusSm,
       ),
     );

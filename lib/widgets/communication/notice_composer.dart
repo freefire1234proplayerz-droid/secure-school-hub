@@ -203,9 +203,9 @@ class NoticeComposerState extends State<NoticeComposer> {
               ),
               const Spacer(),
               if (_state == ComposeState.draftSaved)
-                Chip(
-                  label: const Text('Draft saved'),
-                  avatar: const Icon(Icons.save_outlined, size: 16),
+                const Chip(
+                  label: Text('Draft saved'),
+                  avatar: Icon(Icons.save_outlined, size: 16),
                 ),
               if (!MediaQuery.sizeOf(context).width.isNaN &&
                   MediaQuery.sizeOf(context).width < AppBreakpoints.desktop)

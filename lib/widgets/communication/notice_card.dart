@@ -46,7 +46,8 @@ class _NoticeCardState extends State<NoticeCard> {
     final priorityColor = notice.priority.color(scheme);
 
     return AppFadeIn(
-      delay: AppAnimations.staggerDelay(widget.index, base: AppAnimations.instant),
+      delay:
+          AppAnimations.staggerDelay(widget.index, base: AppAnimations.instant),
       offset: const Offset(0, 10),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
@@ -130,7 +131,7 @@ class _NoticeCardState extends State<NoticeCard> {
                                   icon: Icons.people_outline,
                                 ),
                               if (notice.isScheduled)
-                                AudienceBadge(
+                                const AudienceBadge(
                                   label: 'Scheduled',
                                   icon: Icons.schedule,
                                 ),
@@ -171,7 +172,8 @@ class _NoticeCardState extends State<NoticeCard> {
                       if (!notice.isRead && widget.onMarkRead != null)
                         TextButton.icon(
                           onPressed: widget.onMarkRead,
-                          icon: const Icon(Icons.mark_email_read_outlined, size: 16),
+                          icon: const Icon(Icons.mark_email_read_outlined,
+                              size: 16),
                           label: const Text('Mark read'),
                         ),
                       if (widget.onPin != null)

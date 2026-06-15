@@ -465,11 +465,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                DashboardSection(
+                const DashboardSection(
                   title: 'Personalized workspace',
                   useGlassPanel: false,
                   animate: false,
-                  child: const PersonalizableDashboardStrip(
+                  child: PersonalizableDashboardStrip(
                     items: [
                       DashboardWidgetItem(
                         id: 'risk',
@@ -520,7 +520,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
               useGlassPanel: false,
               child: _students.isEmpty
-                  ? DashboardEmptyState(
+                  ? const DashboardEmptyState(
                       icon: Icons.groups_2_outlined,
                       title: 'No students loaded',
                       message:
@@ -542,7 +542,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                                       padding: const EdgeInsets.all(
                                         AppSpacing.xs,
                                       ),
-                                      decoration: BoxDecoration(
+                                      decoration: const BoxDecoration(
                                         color: Colors.white,
                                         borderRadius: AppSpacing.borderRadiusSm,
                                       ),
@@ -646,22 +646,22 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                DashboardSection(
+                const DashboardSection(
                   title: 'Files, exports & reports',
                   useGlassPanel: false,
                   animate: false,
-                  child: const MediaExperiencePanel(),
+                  child: MediaExperiencePanel(),
                 ),
               ],
             ),
           ),
           ShellSection(
             sectionKey: GlobalKey(),
-            child: DashboardSection(
+            child: const DashboardSection(
               title: 'Interactive analytics',
               useGlassPanel: false,
               animate: false,
-              child: const PremiumAnalyticsPanel(
+              child: PremiumAnalyticsPanel(
                 title: 'Attendance and homework momentum',
                 values: [82, 86, 84, 90, 88, 93, 91],
               ),

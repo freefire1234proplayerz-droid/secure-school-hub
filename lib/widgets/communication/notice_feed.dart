@@ -131,7 +131,7 @@ class _NoticeFeedState extends State<NoticeFeed> {
                         )
                       : null,
                   isDense: true,
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius: AppSpacing.borderRadiusMd,
                     borderSide: BorderSide.none,
                   ),
@@ -283,7 +283,8 @@ class _FeedEmptyState extends State<_FeedEmpty>
                 child: Icon(
                   Icons.inbox_outlined,
                   size: 56,
-                  color: scheme.primary.withValues(alpha: 0.5 + 0.2 * _controller.value),
+                  color: scheme.primary
+                      .withValues(alpha: 0.5 + 0.2 * _controller.value),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),

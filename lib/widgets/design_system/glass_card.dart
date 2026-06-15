@@ -50,24 +50,28 @@ class GlassCard extends StatelessWidget {
     final fill = tintColor ?? AppColors.glassFill(brightness);
     final borderColor = AppColors.glassBorder(brightness);
 
+    final decorated = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        gradient: AppGradients.glassSheen(brightness),
+        color: fill,
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: shadows,
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+
     Widget content = ClipRRect(
       borderRadius: borderRadius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: effectiveBlur,
-          sigmaY: effectiveBlur,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: borderRadius,
-            gradient: AppGradients.glassSheen(brightness),
-            color: fill,
-            border: Border.all(color: borderColor, width: 1),
-            boxShadow: shadows,
-          ),
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
+      child: variant == GlassCardVariant.flat || effectiveBlur <= 0
+          ? decorated
+          : BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: effectiveBlur,
+                sigmaY: effectiveBlur,
+              ),
+              child: decorated,
+            ),
     );
 
     if (onTap != null) {

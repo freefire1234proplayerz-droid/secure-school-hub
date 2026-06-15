@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_animations.dart' show AppAnimations, AppFadeIn;
 import '../../theme/app_spacing.dart';
 import '../design_system/glass_card.dart';
 import 'shell_models.dart';
@@ -133,14 +132,7 @@ class NotificationPanel extends StatelessWidget {
                                 const SizedBox(height: AppSpacing.xs),
                             itemBuilder: (context, index) {
                               final n = notifications[index];
-                              return AppFadeIn(
-                                delay: AppAnimations.staggerDelay(
-                                  index,
-                                  base: AppAnimations.instant,
-                                ),
-                                offset: const Offset(0, 6),
-                                child: _NotificationTile(notification: n),
-                              );
+                              return _NotificationTile(notification: n);
                             },
                           ),
                   ),

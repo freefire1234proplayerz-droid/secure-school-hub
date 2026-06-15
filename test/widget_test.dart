@@ -1,10 +1,32 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
+import 'package:provider/provider.dart';
+import 'package:secure_school_hub/providers/locale_provider.dart';
+import 'package:secure_school_hub/services/auth_service.dart';
+import 'package:secure_school_hub/services/local_db.dart';
 import 'package:secure_school_hub/theme/app_theme.dart';
 import 'package:secure_school_hub/widgets/attendance/qr_scanner_overlay.dart';
 import 'package:secure_school_hub/widgets/shell/app_shell.dart';
 
 void main() {
+  late Directory hiveDir;
+
+  setUpAll(() async {
+    hiveDir = Directory.systemTemp.createTempSync('secure_school_hub_test_');
+    Hive.init(hiveDir.path);
+    await LocalDb.init();
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+    if (hiveDir.existsSync()) {
+      hiveDir.deleteSync(recursive: true);
+    }
+  });
+
   testWidgets('AppShell keeps safe constraints during collapse and resize',
       (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -151,44 +173,122 @@ void main() {
     expect(tapped, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Profile menu opens and closes repeatedly without stale overlays',
+      (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.binding.setSurfaceSize(const Size(1280, 820));
+    await _pumpShell(tester, onLogout: () {});
+
+    for (var i = 0; i < 12; i++) {
+      await tester.tap(find.byTooltip('Account'));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.text('Sign out'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Account'));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.text('Sign out'), findsNothing);
+    }
+
+    await tester.tap(find.byIcon(Icons.bolt_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Quick actions'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Profile menu and notification overlay are mutually exclusive',
+      (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.binding.setSurfaceSize(const Size(1280, 820));
+    await _pumpShell(tester, onLogout: () {});
+
+    await tester.tap(find.byIcon(Icons.notifications_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Door alert'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Door alert'), findsNothing);
+    expect(find.text('Sign out'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.notifications_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign out'), findsNothing);
+    expect(find.text('Door alert'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Profile logout shows confirmation and invokes logout once',
+      (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    var logoutCount = 0;
+    await tester.binding.setSurfaceSize(const Size(1280, 820));
+    await _pumpShell(tester, onLogout: () => logoutCount++);
+
+    await tester.tap(find.byTooltip('Account'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign out?'), findsOneWidget);
+    expect(find.text('Sign out'), findsOneWidget);
+
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+
+    expect(logoutCount, 1);
+    expect(find.text('Sign out?'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _pumpShell(
   WidgetTester tester, {
   VoidCallback? onQuickAction,
+  VoidCallback? onLogout,
 }) async {
   await tester.pumpWidget(
-    MaterialApp(
-      theme: AppTheme.light,
-      home: AppShell(
-        title: 'SecureSchoolHub Operations',
-        navItems: _navItems,
-        selectedIndex: 0,
-        onNavSelected: (_) {},
-        notifications: const [
-          ShellNotification(
-            id: 'door-alert',
-            title: 'Door alert',
-            body: 'Main gate opened',
-            icon: Icons.security_rounded,
-            color: Colors.red,
-          ),
-        ],
-        quickActions: [
-          ShellQuickAction(
-            label: 'Send announcement',
-            icon: Icons.campaign_rounded,
-            onTap: onQuickAction ?? () {},
-          ),
-        ],
-        body: const SizedBox(
-          height: 1600,
-          child: Column(
-            children: [
-              Text('Dashboard body'),
-              SizedBox(height: 1200),
-              Text('End of dashboard'),
-            ],
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => AuthService()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: AppShell(
+          title: 'SecureSchoolHub Operations',
+          navItems: _navItems,
+          selectedIndex: 0,
+          onNavSelected: (_) {},
+          onLogout: onLogout,
+          notifications: const [
+            ShellNotification(
+              id: 'door-alert',
+              title: 'Door alert',
+              body: 'Main gate opened',
+              icon: Icons.security_rounded,
+              color: Colors.red,
+            ),
+          ],
+          quickActions: [
+            ShellQuickAction(
+              label: 'Send announcement',
+              icon: Icons.campaign_rounded,
+              onTap: onQuickAction ?? () {},
+            ),
+          ],
+          body: const SizedBox(
+            height: 1600,
+            child: Column(
+              children: [
+                Text('Dashboard body'),
+                SizedBox(height: 1200),
+                Text('End of dashboard'),
+              ],
+            ),
           ),
         ),
       ),

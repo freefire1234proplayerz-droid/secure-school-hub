@@ -309,6 +309,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
   DateTime _lastScanAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _cooldownUntil = DateTime.fromMillisecondsSinceEpoch(0);
   List<ScanHistoryEntry> _history = [];
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -322,7 +323,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!mounted) return;
+    if (!mounted || _disposed) return;
     switch (state) {
       case AppLifecycleState.resumed:
         _startCamera();
@@ -339,13 +340,16 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
 
   @override
   void dispose() {
+    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
-    _stopCamera();
+    _controller.stop().catchError((_) {});
+    _controller.dispose();
     super.dispose();
   }
 
   Future<void> _startCamera() async {
-    if (!mounted || _cameraTransitioning || _cameraReady) return;
+    if (!mounted || _disposed || _cameraTransitioning || _cameraReady) return;
+    _cameraTransitioning = true;
     setState(() {
       _cameraStarting = true;
       _cameraError = null;
@@ -359,6 +363,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
       setState(() {
         _cameraReady = args != null;
         _cameraStarting = false;
+        _cameraTransitioning = false;
         _cameraError = null;
         _message = args == null ? 'Camera is still starting…' : null;
       });
@@ -367,6 +372,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
       setState(() {
         _cameraReady = false;
         _cameraStarting = false;
+        _cameraTransitioning = false;
         _cameraError = error;
         _state = error.errorCode == MobileScannerErrorCode.permissionDenied
             ? QRScannerState.permissionDenied
@@ -378,6 +384,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
       setState(() {
         _cameraReady = false;
         _cameraStarting = false;
+        _cameraTransitioning = false;
         _state = QRScannerState.failure;
         _message = 'Camera could not be started. Please try again.';
       });
@@ -385,7 +392,8 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
   }
 
   Future<void> _stopCamera() async {
-    if (!_cameraReady && !_controller.isStarting) return;
+    if (_disposed || (!_cameraReady && !_controller.isStarting)) return;
+    _cameraTransitioning = true;
     try {
       await _controller.stop();
     } catch (_) {
@@ -395,6 +403,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
     setState(() {
       _cameraReady = false;
       _cameraStarting = false;
+      _cameraTransitioning = false;
     });
   }
 
@@ -463,6 +472,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
   Future<void> _handleDetect(String? raw) async {
     if (raw == null ||
         raw.trim().isEmpty ||
+        _disposed ||
         !_cameraReady ||
         _state == QRScannerState.success ||
         _isDuplicateScan(raw)) {
@@ -516,6 +526,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
       });
 
       await Future<void>.delayed(AppAnimations.fast);
+      await _stopCamera();
       await _showConfirmation(student, status);
       if (!mounted) return;
       setState(() {
@@ -523,6 +534,7 @@ class _QRAttendanceScreenState extends State<QRAttendanceScreen>
         _previewStudent = null;
         _message = null;
       });
+      await _startCamera();
     } catch (e) {
       if (!mounted) return;
       setState(() {

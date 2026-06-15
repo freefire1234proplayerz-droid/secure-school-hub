@@ -2,7 +2,7 @@ import 'package:hive/hive.dart';
 
 class LocalDb {
   static const String authBoxName = 'authBox_v2';
-static const String cacheBoxName = 'cacheBox_v2';
+  static const String cacheBoxName = 'cacheBox_v2';
 
   static late Box _authBox;
   static late Box _cacheBox;
@@ -34,6 +34,10 @@ static const String cacheBoxName = 'cacheBox_v2';
 
   static Future<void> clearAuth() async {
     await _authBox.clear();
+  }
+
+  static Future<void> clearCache() async {
+    await _cacheBox.clear();
   }
 
   static Future<void> saveCache(String key, dynamic value) async {

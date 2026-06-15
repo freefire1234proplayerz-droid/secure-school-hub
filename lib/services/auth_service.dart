@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'local_db.dart';
 import '../screens/admin/admin_dashboard.dart';
-import '../screens/login_screen.dart';
 import '../screens/parent_dashboard.dart';
 import '../screens/teacher_dashboard.dart';
 
@@ -139,6 +138,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> logout() async {
     await LocalDb.clearAuth();
+    await LocalDb.clearCache();
     _role = null;
     _email = null;
     _tempUserId = null;

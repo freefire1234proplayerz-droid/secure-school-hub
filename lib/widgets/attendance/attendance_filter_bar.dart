@@ -46,7 +46,7 @@ class AttendanceFilterBar extends StatelessWidget {
               isDense: true,
               filled: true,
               fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              border: OutlineInputBorder(
+              border: const OutlineInputBorder(
                 borderRadius: AppSpacing.borderRadiusMd,
                 borderSide: BorderSide.none,
               ),

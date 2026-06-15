@@ -5,3 +5,6 @@ build
 .dart_tool
 .flutter-plugins
 .flutter-plugins-dependencies
+
+macos/Flutter/ephemeral/
+macos/Pods/

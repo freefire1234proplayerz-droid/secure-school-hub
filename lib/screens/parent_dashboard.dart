@@ -371,11 +371,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                DashboardSection(
+                const DashboardSection(
                   title: 'Family dashboard layout',
                   useGlassPanel: false,
                   animate: false,
-                  child: const PersonalizableDashboardStrip(
+                  child: PersonalizableDashboardStrip(
                     items: [
                       DashboardWidgetItem(
                         id: 'weekly-summary',
@@ -470,11 +470,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
           ),
           ShellSection(
             sectionKey: GlobalKey(),
-            child: DashboardSection(
+            child: const DashboardSection(
               title: 'Progress trends',
               useGlassPanel: false,
               animate: false,
-              child: const PremiumAnalyticsPanel(
+              child: PremiumAnalyticsPanel(
                 title: 'Attendance and grade trajectory',
                 values: [78, 81, 86, 84, 89, 91, 94],
               ),
@@ -482,11 +482,11 @@ class _ParentDashboardState extends State<ParentDashboard> {
           ),
           ShellSection(
             sectionKey: GlobalKey(),
-            child: DashboardSection(
+            child: const DashboardSection(
               title: 'Media gallery',
               useGlassPanel: false,
               animate: false,
-              child: const MediaExperiencePanel(),
+              child: MediaExperiencePanel(),
             ),
           ),
           ShellSection(

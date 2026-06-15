@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'services/local_db.dart';
 import 'services/auth_service.dart';
 import 'services/api_service.dart';
+import 'services/frontend_stability_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/teacher_dashboard.dart';
 import 'screens/parent_dashboard.dart';
@@ -20,6 +21,7 @@ void main() async {
     FlutterError.presentError(details);
   };
   ErrorWidget.builder = (details) => _GlobalErrorFallback(details: details);
+  FrontendStabilityService.instance.enableFrameDiagnostics();
   await Hive.initFlutter();
   await LocalDb.init();
 

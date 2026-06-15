@@ -1,6 +1,4 @@
 PODS:
-  - file_selector_macos (0.0.1):
-    - FlutterMacOS
   - Firebase/CoreOnly (10.25.0):
     - FirebaseCore (= 10.25.0)
   - Firebase/Messaging (10.25.0):
@@ -74,7 +72,6 @@ PODS:
   - PromisesObjC (2.4.0)
 
 DEPENDENCIES:
-  - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - firebase_core (from `Flutter/ephemeral/.symlinks/plugins/firebase_core/macos`)
   - firebase_messaging (from `Flutter/ephemeral/.symlinks/plugins/firebase_messaging/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -93,8 +90,6 @@ SPEC REPOS:
     - PromisesObjC
 
 EXTERNAL SOURCES:
-  file_selector_macos:
-    :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   firebase_core:
     :path: Flutter/ephemeral/.symlinks/plugins/firebase_core/macos
   firebase_messaging:
@@ -105,7 +100,6 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/mobile_scanner/macos
 
 SPEC CHECKSUMS:
-  file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   Firebase: 0312a2352584f782ea56f66d91606891d4607f06
   firebase_core: e324fc945c2abe77065357fd9c8dd6853d8a88a5
   firebase_messaging: 8bbe97d2605bdf176f66e19d2a6c611328bdafc4

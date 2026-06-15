@@ -4,6 +4,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/frontend_experience_service.dart';
+import '../../services/frontend_stability_service.dart';
 import '../../theme/app_animations.dart';
 import '../../theme/app_spacing.dart';
 import '../dashboard/dashboard_grid.dart';
@@ -32,6 +33,7 @@ class ProductionExperienceLayer extends StatefulWidget {
 
 class ProductionExperienceLayerState extends State<ProductionExperienceLayer> {
   final _service = FrontendExperienceService.instance;
+  final _stability = FrontendStabilityService.instance;
   bool _commandOpen = false;
   bool _activityOpen = false;
   bool _settingsOpen = false;
@@ -40,6 +42,14 @@ class ProductionExperienceLayerState extends State<ProductionExperienceLayer> {
   void initState() {
     super.initState();
     _service.initialize();
+    _stability.registerCleanup(closeOverlays);
+  }
+
+  @override
+  void dispose() {
+    _stability.unregisterCleanup(closeOverlays);
+    _service.pause();
+    super.dispose();
   }
 
   @override
@@ -64,12 +74,14 @@ class ProductionExperienceLayerState extends State<ProductionExperienceLayer> {
             ),
             Positioned(
               right: AppSpacing.md,
-              bottom: AppSpacing.md,
-              child: _FloatingExperienceDock(
-                pendingCount: snapshot.pendingCount,
-                onCommand: _openCommandPalette,
-                onActivity: () => setState(() => _activityOpen = true),
-                onSettings: () => setState(() => _settingsOpen = true),
+              bottom: 88,
+              child: RepaintBoundary(
+                child: _FloatingExperienceDock(
+                  pendingCount: snapshot.pendingCount,
+                  onCommand: _openCommandPalette,
+                  onActivity: () => _openExclusive(activity: true),
+                  onSettings: () => _openExclusive(settings: true),
+                ),
               ),
             ),
             if (_commandOpen)
@@ -104,9 +116,35 @@ class ProductionExperienceLayerState extends State<ProductionExperienceLayer> {
     _openCommandPalette();
   }
 
+  void closeOverlays() {
+    if (!_commandOpen && !_activityOpen && !_settingsOpen) return;
+    setState(() {
+      _commandOpen = false;
+      _activityOpen = false;
+      _settingsOpen = false;
+    });
+  }
+
   void _openCommandPalette() {
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _commandOpen = true);
+    _openExclusive(command: true);
+  }
+
+  void _openExclusive({
+    bool command = false,
+    bool activity = false,
+    bool settings = false,
+  }) {
+    if (_commandOpen == command &&
+        _activityOpen == activity &&
+        _settingsOpen == settings) {
+      return;
+    }
+    setState(() {
+      _commandOpen = command;
+      _activityOpen = activity;
+      _settingsOpen = settings;
+    });
   }
 }
 
@@ -318,51 +356,59 @@ class _CommandPaletteOverlayState extends State<_CommandPaletteOverlay> {
     return Positioned.fill(
       child: Material(
         color: Colors.black.withValues(alpha: 0.24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640, maxHeight: 560),
-            child: GlassCard(
-              variant: GlassCardVariant.elevated,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _controller,
-                    autofocus: true,
-                    onChanged: (value) => setState(() => _query = value),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search_rounded),
-                      hintText: 'Search navigation, actions, reports...',
-                      border: InputBorder.none,
-                    ),
-                    onSubmitted: (_) {
-                      if (commands.isNotEmpty) commands.first.onTap();
-                    },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onClose,
+          child: Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(maxWidth: 640, maxHeight: 560),
+                child: GlassCard(
+                  variant: GlassCardVariant.elevated,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: _controller,
+                        autofocus: true,
+                        onChanged: (value) => setState(() => _query = value),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search_rounded),
+                          hintText: 'Search navigation, actions, reports...',
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (_) {
+                          if (commands.isNotEmpty) commands.first.onTap();
+                        },
+                      ),
+                      const Divider(height: 1),
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: commands.length,
+                          itemBuilder: (context, index) {
+                            final command = commands[index];
+                            return ListTile(
+                              leading: Icon(command.icon),
+                              title: Text(command.label),
+                              subtitle: Text(command.subtitle),
+                              onTap: command.onTap,
+                            );
+                          },
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: widget.onClose,
+                          child: const Text('Close'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const Divider(height: 1),
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: commands.length,
-                      itemBuilder: (context, index) {
-                        final command = commands[index];
-                        return ListTile(
-                          leading: Icon(command.icon),
-                          title: Text(command.label),
-                          subtitle: Text(command.subtitle),
-                          onTap: command.onTap,
-                        );
-                      },
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: widget.onClose,
-                      child: const Text('Close'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

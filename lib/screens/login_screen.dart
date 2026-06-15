@@ -154,7 +154,8 @@ class _LoginScreenState extends State<LoginScreen>
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1080),
                       child: Padding(
-                        padding: AppBreakpoints.pagePadding(constraints.maxWidth),
+                        padding:
+                            AppBreakpoints.pagePadding(constraints.maxWidth),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
@@ -310,10 +311,10 @@ class _BrandingPanel extends StatelessWidget {
         ),
         if (!compact) ...[
           const SizedBox(height: AppSpacing.xl),
-          Wrap(
+          const Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
-            children: const [
+            children: [
               _FeatureBadge(
                 icon: Icons.verified_user_outlined,
                 label: '2FA secured',
@@ -489,8 +490,8 @@ class _LoginFormCard extends StatelessWidget {
             ),
             child: otpSent
                 ? _OtpStepIndicator(key: const ValueKey('otp-step'), loc: loc)
-                : _CredentialsStepIndicator(
-                    key: const ValueKey('cred-step'),
+                : const _CredentialsStepIndicator(
+                    key: ValueKey('cred-step'),
                   ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -593,9 +594,8 @@ class _LoginFormCard extends StatelessWidget {
                   delay: AppAnimations.staggerDelay(3),
                   child: AppButton(
                     label: otpSent ? loc.verifyOtp : loc.sendOtp,
-                    icon: otpSent
-                        ? Icons.verified_outlined
-                        : Icons.send_rounded,
+                    icon:
+                        otpSent ? Icons.verified_outlined : Icons.send_rounded,
                     expand: true,
                     isLoading: auth.isLoading,
                     onPressed: auth.isLoading ? null : onSubmit,
@@ -615,8 +615,8 @@ class _CredentialsStepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _StepIndicator(
-      steps: const ['Credentials', 'Verification'],
+    return const _StepIndicator(
+      steps: ['Credentials', 'Verification'],
       activeIndex: 0,
     );
   }
@@ -661,9 +661,7 @@ class _StepIndicator extends StatelessWidget {
                 gradient: i <= activeIndex
                     ? AppGradients.heroAccentSoft(scheme)
                     : null,
-                color: i <= activeIndex
-                    ? null
-                    : scheme.surfaceContainerHighest,
+                color: i <= activeIndex ? null : scheme.surfaceContainerHighest,
               ),
             ),
           ),

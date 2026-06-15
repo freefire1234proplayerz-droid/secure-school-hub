@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_spacing.dart';
 
 import '../../theme/app_animations.dart';
+import '../../services/frontend_stability_service.dart';
 import 'notification_panel.dart';
 import 'profile_menu.dart';
 import 'shell_models.dart';
@@ -40,12 +41,15 @@ class DashboardHeaderState extends State<DashboardHeader>
   final _searchFocus = FocusNode();
   final _searchController = TextEditingController();
   final _notificationKey = GlobalKey();
+  final _profileKey = GlobalKey<ProfileMenuState>();
   OverlayEntry? _notificationOverlay;
+  final _stability = FrontendStabilityService.instance;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _stability.registerCleanup(closeOverlays);
   }
 
   @override
@@ -64,6 +68,7 @@ class DashboardHeaderState extends State<DashboardHeader>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stability.unregisterCleanup(closeOverlays);
     _closeNotifications();
     _searchFocus.dispose();
     _searchController.dispose();
@@ -72,6 +77,8 @@ class DashboardHeaderState extends State<DashboardHeader>
 
   void closeOverlays() {
     _closeNotifications();
+    _profileKey.currentState?.closeMenu();
+    _searchFocus.unfocus();
   }
 
   void focusSearch() {
@@ -84,6 +91,8 @@ class DashboardHeaderState extends State<DashboardHeader>
       _closeNotifications();
       return;
     }
+    _profileKey.currentState?.closeMenu();
+    FocusManager.instance.primaryFocus?.unfocus();
 
     final overlay = Overlay.of(context);
     final renderBox =
@@ -210,8 +219,10 @@ class DashboardHeaderState extends State<DashboardHeader>
                 ),
                 if (widget.onLogout != null)
                   ProfileMenu(
+                    key: _profileKey,
                     onLogout: widget.onLogout!,
                     onRefresh: widget.onRefresh,
+                    onMenuWillOpen: _closeNotifications,
                   ),
               ],
             ),

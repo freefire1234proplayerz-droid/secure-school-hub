@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../theme/app_animations.dart';
 import '../../theme/app_spacing.dart';
+import '../../services/frontend_stability_service.dart';
 import '../design_system/gradient_background.dart';
 import '../experience/production_experience.dart';
 import 'dashboard_header.dart';
@@ -60,7 +61,9 @@ class AppShellState extends State<AppShell> {
   bool _sidebarCollapsed = false;
   bool _quickActionsOpen = false;
   bool _mobileNavOpen = false;
+  bool _logoutDialogOpen = false;
   late ScrollController _scrollController;
+  final _stability = FrontendStabilityService.instance;
 
   @override
   void initState() {
@@ -69,7 +72,18 @@ class AppShellState extends State<AppShell> {
   }
 
   @override
+  void didUpdateWidget(covariant AppShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scrollController == widget.scrollController) return;
+    if (oldWidget.scrollController == null) {
+      _scrollController.dispose();
+    }
+    _scrollController = widget.scrollController ?? ScrollController();
+  }
+
+  @override
   void dispose() {
+    _headerKey.currentState?.closeOverlays();
     if (widget.scrollController == null) {
       _scrollController.dispose();
     }
@@ -77,8 +91,7 @@ class AppShellState extends State<AppShell> {
   }
 
   void _handleNavSelected(int index) {
-    _headerKey.currentState?.closeOverlays();
-    FocusManager.instance.primaryFocus?.unfocus();
+    _resetInteractions();
     widget.onNavSelected(index);
     _scrollToSection(index);
   }
@@ -148,8 +161,7 @@ class AppShellState extends State<AppShell> {
   }
 
   void _toggleSidebar() {
-    _headerKey.currentState?.closeOverlays();
-    FocusManager.instance.primaryFocus?.unfocus();
+    _resetInteractions();
     if (!mounted) return;
     setState(() => _sidebarCollapsed = !_sidebarCollapsed);
   }
@@ -157,79 +169,126 @@ class AppShellState extends State<AppShell> {
   Future<void> _openQuickActions() async {
     if (widget.quickActions.isEmpty || _quickActionsOpen) return;
 
-    _headerKey.currentState?.closeOverlays();
-    FocusManager.instance.primaryFocus?.unfocus();
+    _resetInteractions();
     _quickActionsOpen = true;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final viewportWidth = _safeWidth(
-              constraints.hasBoundedWidth ? constraints.maxWidth : null,
-              fallback: MediaQuery.sizeOf(context).width,
-            );
-            final panelWidth = _ShellLayoutMetrics.safeClamp(
-              viewportWidth,
-              min: 0,
-              max: 560,
-            );
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final viewportWidth = _safeWidth(
+                constraints.hasBoundedWidth ? constraints.maxWidth : null,
+                fallback: MediaQuery.sizeOf(context).width,
+              );
+              final panelWidth = _ShellLayoutMetrics.safeClamp(
+                viewportWidth,
+                min: 0,
+                max: 560,
+              );
 
-            return SafeArea(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minWidth: 0,
-                    maxWidth: panelWidth,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.sm,
-                      AppSpacing.md,
-                      AppSpacing.lg,
+              return SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: 0,
+                      maxWidth: panelWidth,
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Quick actions',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        for (final action in widget.quickActions)
-                          ListTile(
-                            leading: Icon(action.icon),
-                            title: Text(action.label),
-                            subtitle: action.description != null
-                                ? Text(action.description!)
-                                : null,
-                            onTap: () {
-                              Navigator.pop(context);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) action.onTap();
-                              });
-                            },
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Quick actions',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
-                      ],
+                          const SizedBox(height: AppSpacing.md),
+                          for (final action in widget.quickActions)
+                            ListTile(
+                              leading: Icon(action.icon),
+                              title: Text(action.label),
+                              subtitle: action.description != null
+                                  ? Text(action.description!)
+                                  : null,
+                              onTap: () {
+                                Navigator.pop(context);
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  if (mounted) action.onTap();
+                                });
+                              },
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    );
-    if (!mounted) return;
-    _quickActionsOpen = false;
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        _quickActionsOpen = false;
+        _resetInteractions();
+      }
+    }
+  }
+
+  void _resetInteractions() {
+    _headerKey.currentState?.closeOverlays();
+    _experienceKey.currentState?.closeOverlays();
+    _stability.resetInteractions();
     FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  Future<void> _confirmLogout() async {
+    if (widget.onLogout == null || _logoutDialogOpen) return;
+    _resetInteractions();
+    _logoutDialogOpen = true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        icon: Icon(
+          Icons.logout_rounded,
+          color: Theme.of(context).colorScheme.error,
+        ),
+        title: const Text('Sign out?'),
+        content: const Text(
+          'This will close active panels and return Secure School Hub to the login screen.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+
+    _logoutDialogOpen = false;
+    if (!mounted || confirmed != true) return;
+    _resetInteractions();
+    widget.onLogout!();
   }
 
   double _safeWidth(double? value, {required double fallback}) {
@@ -252,7 +311,7 @@ class AppShellState extends State<AppShell> {
                   ? _toggleSidebar
                   : null,
           notifications: widget.notifications,
-          onLogout: widget.onLogout,
+          onLogout: widget.onLogout == null ? null : _confirmLogout,
           onRefresh: widget.onRefresh,
           onSearch: widget.onSearch,
           searchHint: widget.searchHint,
@@ -328,6 +387,7 @@ class AppShellState extends State<AppShell> {
       autofocus: true,
       onKeyEvent: _handleKeyEvent,
       child: GradientBackground(
+        showOrbs: false,
         child: ProductionExperienceLayer(
           key: _experienceKey,
           navItems: widget.navItems,
@@ -395,42 +455,45 @@ class AppShellState extends State<AppShell> {
 
   Future<void> _showMobileNav(BuildContext context) async {
     if (_mobileNavOpen) return;
-    _headerKey.currentState?.closeOverlays();
-    FocusManager.instance.primaryFocus?.unfocus();
+    _resetInteractions();
     _mobileNavOpen = true;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < widget.navItems.length; i++)
-                ListTile(
-                  leading: Icon(
-                    i == widget.selectedIndex
-                        ? widget.navItems[i].activeIcon
-                        : widget.navItems[i].icon,
-                    color: i == widget.selectedIndex
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < widget.navItems.length; i++)
+                  ListTile(
+                    leading: Icon(
+                      i == widget.selectedIndex
+                          ? widget.navItems[i].activeIcon
+                          : widget.navItems[i].icon,
+                      color: i == widget.selectedIndex
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
+                    ),
+                    title: Text(widget.navItems[i].label),
+                    selected: i == widget.selectedIndex,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _handleNavSelected(i);
+                    },
                   ),
-                  title: Text(widget.navItems[i].label),
-                  selected: i == widget.selectedIndex,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _handleNavSelected(i);
-                  },
-                ),
-            ],
-          ),
-        );
-      },
-    );
-    if (!mounted) return;
-    _mobileNavOpen = false;
-    FocusManager.instance.primaryFocus?.unfocus();
+              ],
+            ),
+          );
+        },
+      );
+    } finally {
+      if (mounted) {
+        _mobileNavOpen = false;
+        _resetInteractions();
+      }
+    }
   }
 }
 

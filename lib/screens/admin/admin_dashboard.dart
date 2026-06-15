@@ -310,11 +310,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           ShellSection(
             sectionKey: GlobalKey(),
-            child: DashboardSection(
+            child: const DashboardSection(
               title: 'Executive dashboard layout',
               useGlassPanel: false,
               animate: false,
-              child: const PersonalizableDashboardStrip(
+              child: PersonalizableDashboardStrip(
                 items: [
                   DashboardWidgetItem(
                     id: 'risk-heatmap',
@@ -378,11 +378,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           ShellSection(
             sectionKey: _sectionKeys['activity']!,
-            child: DashboardSection(
+            child: const DashboardSection(
               title: 'Broadcasts & communications',
               useGlassPanel: false,
               animate: false,
-              child: const AdminCommunicationModule(),
+              child: AdminCommunicationModule(),
             ),
           ),
           const SizedBox(height: AppSpacing.xxl),
