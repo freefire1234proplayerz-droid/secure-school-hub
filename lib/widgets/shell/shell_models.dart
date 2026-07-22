@@ -82,18 +82,25 @@ abstract final class ShellNavConfig {
       shortcut: '3',
     ),
     ShellNavItem(
+      id: 'users',
+      label: 'Users',
+      icon: Icons.manage_accounts_outlined,
+      selectedIcon: Icons.manage_accounts,
+      shortcut: '4',
+    ),
+    ShellNavItem(
       id: 'security',
       label: 'Security',
       icon: Icons.shield_outlined,
       selectedIcon: Icons.shield,
-      shortcut: '4',
+      shortcut: '5',
     ),
     ShellNavItem(
       id: 'activity',
       label: 'Activity',
       icon: Icons.history_outlined,
       selectedIcon: Icons.history,
-      shortcut: '5',
+      shortcut: '6',
     ),
   ];
 
@@ -158,18 +165,49 @@ abstract final class ShellNavConfig {
       shortcut: '3',
     ),
     ShellNavItem(
+      id: 'ai_tutor',
+      label: 'AI Study Buddy',
+      icon: Icons.smart_toy_outlined,
+      selectedIcon: Icons.smart_toy,
+      shortcut: '4',
+    ),
+    ShellNavItem(
       id: 'homework',
       label: 'Homework',
       icon: Icons.assignment_outlined,
       selectedIcon: Icons.assignment,
-      shortcut: '4',
+      shortcut: '5',
     ),
     ShellNavItem(
       id: 'messages',
       label: 'Messages',
       icon: Icons.chat_outlined,
       selectedIcon: Icons.chat,
-      shortcut: '5',
+      shortcut: '6',
+    ),
+  ];
+
+  static const List<ShellNavItem> student = [
+    ShellNavItem(
+      id: 'overview',
+      label: 'Overview',
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard,
+      shortcut: '1',
+    ),
+    ShellNavItem(
+      id: 'aiTutor',
+      label: 'AI Tutor',
+      icon: Icons.psychology_alt_outlined,
+      selectedIcon: Icons.psychology_alt,
+      shortcut: '2',
+    ),
+    ShellNavItem(
+      id: 'study',
+      label: 'Study',
+      icon: Icons.auto_stories_outlined,
+      selectedIcon: Icons.auto_stories,
+      shortcut: '3',
     ),
   ];
 }

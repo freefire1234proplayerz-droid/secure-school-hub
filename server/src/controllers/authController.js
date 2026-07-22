@@ -3,10 +3,11 @@ import jwt from 'jsonwebtoken';
 import { authenticator } from 'otplib';
 
 import { query } from '../db.js';
+import { logAudit } from '../utils/audit.js';
 
 const SALT_ROUNDS = 10;
 const JWT_EXPIRES = '7d';
-const ALLOWED_ROLES = ['teacher', 'parent', 'admin'];
+const ALLOWED_ROLES = ['student', 'teacher', 'parent', 'admin'];
 
 authenticator.options = { step: 120 };
 
@@ -36,7 +37,7 @@ export async function signup(req, res) {
     }
 
     if (!ALLOWED_ROLES.includes(role)) {
-      return res.status(400).json({ error: 'Role must be teacher, parent, or admin' });
+      return res.status(400).json({ error: 'Role must be student, teacher, parent, or admin' });
     }
 
     if (password.length < 8) {
@@ -80,7 +81,7 @@ export async function login(req, res) {
     }
 
     const result = await query(
-      'SELECT id, email, password_hash, role FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, role, status FROM users WHERE email = $1',
       [email.toLowerCase().trim()],
     );
 
@@ -89,6 +90,18 @@ export async function login(req, res) {
     }
 
     const user = result.rows[0];
+
+    if (user.status === 'disabled') {
+      await logAudit({
+        req,
+        actorUserId: user.id,
+        targetUserId: user.id,
+        action: 'login_blocked_disabled',
+        category: 'login',
+        detail: 'Disabled account attempted to log in',
+      });
+      return res.status(403).json({ error: 'Account disabled' });
+    }
 
     if (role && user.role !== role) {
       return res.status(401).json({ error: 'Role mismatch' });
@@ -100,6 +113,15 @@ export async function login(req, res) {
     }
 
     const token = signToken(user);
+    await logAudit({
+      req,
+      actorUserId: user.id,
+      targetUserId: user.id,
+      action: 'login',
+      category: 'login',
+      detail: 'User logged in',
+      metadata: { role: user.role },
+    });
 
     return res.json({
       token,
@@ -120,7 +142,7 @@ export async function loginOtp(req, res) {
     }
 
     const result = await query(
-      'SELECT id, password_hash, role, totp_secret FROM users WHERE email = $1',
+      'SELECT id, password_hash, role, totp_secret, status FROM users WHERE email = $1',
       [email.toLowerCase().trim()],
     );
 
@@ -129,6 +151,18 @@ export async function loginOtp(req, res) {
     }
 
     const user = result.rows[0];
+
+    if (user.status === 'disabled') {
+      await logAudit({
+        req,
+        actorUserId: user.id,
+        targetUserId: user.id,
+        action: 'login_blocked_disabled',
+        category: 'login',
+        detail: 'Disabled account attempted to start OTP login',
+      });
+      return res.status(403).json({ error: 'Account disabled' });
+    }
 
     if (user.role !== role) {
       return res.status(401).json({ error: 'Role mismatch' });
@@ -157,7 +191,7 @@ export async function verifyOtp(req, res) {
     }
 
     const result = await query(
-      'SELECT id, email, role, totp_secret FROM users WHERE id = $1',
+      'SELECT id, email, role, totp_secret, status FROM users WHERE id = $1',
       [tempUserId],
     );
 
@@ -166,6 +200,10 @@ export async function verifyOtp(req, res) {
     }
 
     const user = result.rows[0];
+    if (user.status === 'disabled') {
+      return res.status(403).json({ error: 'Account disabled' });
+    }
+
     const isValid = authenticator.check(otp, user.totp_secret);
 
     if (!isValid) {
@@ -173,6 +211,15 @@ export async function verifyOtp(req, res) {
     }
 
     const token = signToken(user);
+    await logAudit({
+      req,
+      actorUserId: user.id,
+      targetUserId: user.id,
+      action: 'login_otp_verified',
+      category: 'login',
+      detail: 'User completed OTP login',
+      metadata: { role: user.role },
+    });
 
     return res.json({ token, user: publicUser(user) });
   } catch (error) {
@@ -184,7 +231,7 @@ export async function getMe(req, res) {
   try {
     const userId = req.user.id ?? req.user.sub;
     const result = await query(
-      'SELECT id, email, role FROM users WHERE id = $1',
+      "SELECT id, email, role FROM users WHERE id = $1 AND status <> 'disabled'",
       [userId],
     );
 

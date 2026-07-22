@@ -10,6 +10,7 @@ import '../../widgets/dashboard/dashboard_grid.dart';
 import '../../widgets/dashboard/dashboard_section.dart';
 import '../../widgets/dashboard/kpi_stat_card.dart';
 import '../../widgets/dashboard/quick_action_card.dart';
+import '../../widgets/admin/user_management_module.dart';
 import '../../widgets/design_system/app_button.dart';
 import '../../widgets/communication/admin_communication_module.dart';
 import '../../widgets/experience/production_experience.dart';
@@ -35,6 +36,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       'overview',
       'analytics',
       'actions',
+      'users',
       'security',
       'activity'
     ])
@@ -156,8 +158,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           onTap: _loadDashboard,
         ),
         ShellQuickAction(
-          label: 'Review fees',
-          icon: Icons.payments_outlined,
+          label: 'Manage users',
+          icon: Icons.manage_accounts_outlined,
           onTap: _loadDashboard,
         ),
       ],
@@ -339,6 +341,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ],
               ),
+            ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['users']!,
+            child: const DashboardSection(
+              title: 'User management',
+              useGlassPanel: false,
+              animate: false,
+              child: UserManagementModule(),
             ),
           ),
           ShellSection(

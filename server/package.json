@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "NODE_ENV=development nodemon src/index.js"
+    "dev": "NODE_ENV=development nodemon src/index.js",
+    "seed": "node scripts/seedDemoData.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
@@ -24,4 +26,3 @@
     "nodemon": "^3.0.2"
   }
 }
-

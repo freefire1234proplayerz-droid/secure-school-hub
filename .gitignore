@@ -1,10 +1,29 @@
+# Environment variables
 .env
 server/.env
-node_modules
-build
-.dart_tool
+
+# Node
+node_modules/
+server/node_modules/
+
+# Flutter
+.dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
+build/
 
+# macOS
+.DS_Store
 macos/Flutter/ephemeral/
 macos/Pods/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Generated files
+coverage/

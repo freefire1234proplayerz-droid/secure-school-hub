@@ -11,6 +11,8 @@ import 'screens/login_screen.dart';
 import 'screens/teacher_dashboard.dart';
 import 'screens/parent_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
+import 'screens/student/ai_tutor_screen.dart';
+import 'screens/student/student_dashboard.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'theme/app_theme.dart';
@@ -68,6 +70,8 @@ class SecureSchoolHubApp extends StatelessWidget {
               AdminDashboard.routeName: (_) => const AdminDashboard(),
               TeacherDashboard.routeName: (_) => const TeacherDashboard(),
               ParentDashboard.routeName: (_) => const ParentDashboard(),
+              StudentDashboard.routeName: (_) => const StudentDashboard(),
+              AiTutorScreen.routeName: (_) => const AiTutorScreen(),
             },
           );
         },

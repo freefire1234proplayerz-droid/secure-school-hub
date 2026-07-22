@@ -12,6 +12,8 @@ import { gradesRouter } from './routes/grades.js';
 import { chatRouter } from './routes/chat.js';
 import { securityRouter } from './routes/security.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { adminUsersRouter } from './routes/adminUsers.js';
+import { aiRouter } from './routes/ai.js';
 import { ensureDatabaseReady } from './initDb.js';
 
 dotenv.config();
@@ -45,7 +47,9 @@ app.use('/api/grades', gradesRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/security', securityRouter);
 app.use('/api/dashboard', dashboardRouter);
-
+app.use('/api/admin', adminUsersRouter);
+app.use('/api/ai', aiRouter);
+console.log('AI ROUTER LOADED');
 const port = process.env.PORT || 4000;
 
 ensureDatabaseReady()
@@ -60,3 +64,4 @@ ensureDatabaseReady()
     console.error('Database initialization failed:', error);
     process.exit(1);
   });
+  

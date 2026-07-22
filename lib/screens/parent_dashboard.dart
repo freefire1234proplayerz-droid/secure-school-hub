@@ -13,6 +13,7 @@ import '../widgets/dashboard/dashboard_components.dart' hide DashboardSection;
 import '../widgets/dashboard/dashboard_grid.dart';
 import '../widgets/dashboard/dashboard_section.dart';
 import '../widgets/dashboard/kpi_stat_card.dart';
+import '../widgets/dashboard/quick_action_card.dart';
 import '../widgets/design_system/app_button.dart';
 import '../widgets/attendance/attendance_models.dart';
 import '../widgets/attendance/parent_attendance_module.dart';
@@ -20,6 +21,7 @@ import '../widgets/communication/parent_communication_module.dart';
 import '../widgets/experience/production_experience.dart';
 import '../widgets/shell/app_shell.dart';
 import 'login_screen.dart';
+import 'student/ai_tutor_screen.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -40,6 +42,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       'overview',
       'attendance',
       'grades',
+      'ai_tutor',
       'homework',
       'messages',
     ])
@@ -160,6 +163,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
     }
   }
 
+  void _openAiTutor() {
+    // ignore: avoid_print
+    print('AI Tutor opened from Parent Dashboard');
+    Navigator.pushNamed(context, AiTutorScreen.routeName);
+  }
+
   Future<void> _loadDashboard() async {
     try {
       final res = await _api.get('/dashboard/parent');
@@ -257,259 +266,352 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final gradeAverage = asInt(_dashboard['gradeAverage'], 86);
     final childName = _dashboard['childName']?.toString() ?? 'Aarav Sharma';
 
-    return AppShell(
-      title: 'Parent Portal',
-      navItems: ShellNavConfig.parent,
-      selectedIndex: _selectedNav,
-      onNavSelected: (i) => setState(() => _selectedNav = i),
-      sectionKeys: _sectionKeys,
-      notifications: _shellNotifications(),
-      onLogout: _logout,
-      onRefresh: _refreshDashboard,
-      isLoading: _loading,
-      quickActions: [
-        ShellQuickAction(
-          label: 'Upload fee proof',
-          icon: Icons.upload_file_outlined,
-          onTap: _uploadFeeProof,
-        ),
-        ShellQuickAction(
-          label: 'Refresh grades',
-          icon: Icons.school_outlined,
-          onTap: _loadGrades,
-        ),
-      ],
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ShellSection(
-            sectionKey: _sectionKeys['overview']!,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DashboardPageHeader(
-                  title: childName,
-                  subtitle:
-                      'Attendance, grades, reminders, and secure school communication.',
-                  trailing: AppButton(
-                    label: 'Refresh',
-                    icon: Icons.refresh,
-                    onPressed: _refreshDashboard,
-                    size: AppButtonSize.sm,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                DashboardGrid(
+    return Stack(
+      children: [
+        AppShell(
+          title: 'Parent Portal',
+          navItems: ShellNavConfig.parent,
+          selectedIndex: _selectedNav,
+          onNavSelected: (i) => setState(() => _selectedNav = i),
+          sectionKeys: _sectionKeys,
+          notifications: _shellNotifications(),
+          onLogout: _logout,
+          onRefresh: _refreshDashboard,
+          isLoading: _loading,
+          quickActions: [
+            ShellQuickAction(
+              label: 'Upload fee proof',
+              icon: Icons.upload_file_outlined,
+              onTap: _uploadFeeProof,
+            ),
+            ShellQuickAction(
+              label: 'Refresh grades',
+              icon: Icons.school_outlined,
+              onTap: _loadGrades,
+            ),
+            ShellQuickAction(
+              label: 'AI Study Buddy',
+              icon: Icons.smart_toy_outlined,
+              description: 'Ask doubts and get homework support',
+              onTap: _openAiTutor,
+            ),
+          ],
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ShellSection(
+                sectionKey: _sectionKeys['overview']!,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    KPIStatCard(
-                      label: 'Child attendance',
-                      value: '$attendancePercent%',
-                      icon: Icons.how_to_reg_outlined,
-                      color: colorScheme.primary,
-                      trend: '+3%',
-                      detail: 'Present today at 8:04 AM',
-                      isLoading: _loading,
+                    DashboardPageHeader(
+                      title: childName,
+                      subtitle:
+                          'Attendance, grades, reminders, and secure school communication.',
+                      trailing: AppButton(
+                        label: 'Refresh',
+                        icon: Icons.refresh,
+                        onPressed: _refreshDashboard,
+                        size: AppButtonSize.sm,
+                      ),
                     ),
-                    KPIStatCard(
-                      label: 'Grade average',
-                      value: '$gradeAverage%',
-                      icon: Icons.school_outlined,
-                      color: Colors.teal,
-                      trend: '+5%',
-                      detail: 'Term 2 performance',
-                      isLoading: _loading,
+                    const SizedBox(height: AppSpacing.lg),
+                    DashboardGrid(
+                      children: [
+                        KPIStatCard(
+                          label: 'Child attendance',
+                          value: '$attendancePercent%',
+                          icon: Icons.how_to_reg_outlined,
+                          color: colorScheme.primary,
+                          trend: '+3%',
+                          detail: 'Present today at 8:04 AM',
+                          isLoading: _loading,
+                        ),
+                        KPIStatCard(
+                          label: 'Grade average',
+                          value: '$gradeAverage%',
+                          icon: Icons.school_outlined,
+                          color: Colors.teal,
+                          trend: '+5%',
+                          detail: 'Term 2 performance',
+                          isLoading: _loading,
+                        ),
+                        KPIStatCard(
+                          label: 'Fee reminders',
+                          value: '${_dashboard['feeReminders'] ?? 1}',
+                          icon: Icons.currency_rupee,
+                          color: Colors.deepOrange,
+                          detail: 'Transport fee due Friday',
+                          isLoading: _loading,
+                        ),
+                        KPIStatCard(
+                          label: 'Notifications',
+                          value: '${_notifications.length}',
+                          icon: Icons.notifications_none,
+                          color: Colors.indigo,
+                          detail: 'Latest school updates',
+                          isLoading: _loading,
+                        ),
+                      ],
                     ),
-                    KPIStatCard(
-                      label: 'Fee reminders',
-                      value: '${_dashboard['feeReminders'] ?? 1}',
-                      icon: Icons.currency_rupee,
-                      color: Colors.deepOrange,
-                      detail: 'Transport fee due Friday',
-                      isLoading: _loading,
+                    const SizedBox(height: AppSpacing.md),
+                    DashboardSection(
+                      title: 'Fee payment',
+                      useGlassPanel: false,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Upload payment receipt so the teacher can verify it.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AppButton(
+                            label: 'Upload fee proof',
+                            icon: Icons.upload_file_outlined,
+                            onPressed: _uploadFeeProof,
+                            size: AppButtonSize.sm,
+                          ),
+                        ],
+                      ),
                     ),
-                    KPIStatCard(
-                      label: 'Notifications',
-                      value: '${_notifications.length}',
-                      icon: Icons.notifications_none,
-                      color: Colors.indigo,
-                      detail: 'Latest school updates',
-                      isLoading: _loading,
+                    const SizedBox(height: AppSpacing.lg),
+                    DashboardSection(
+                      title: 'Learning support',
+                      useGlassPanel: false,
+                      child: DashboardGrid(
+                        minItemWidth: 280,
+                        children: [
+                          QuickActionCard(
+                            label: '🤖 AI Study Buddy',
+                            description:
+                                'Ask doubts, learn concepts, solve homework, and get chapter explanations.',
+                            icon: Icons.smart_toy_outlined,
+                            color: Colors.indigo,
+                            onTap: _openAiTutor,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    DashboardSection(
+                      title: 'AI progress summary',
+                      useGlassPanel: false,
+                      animate: false,
+                      child: IntelligentInsightsPanel(
+                        audience: 'parent',
+                        primaryScore: attendancePercent,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    const DashboardSection(
+                      title: 'Family dashboard layout',
+                      useGlassPanel: false,
+                      animate: false,
+                      child: PersonalizableDashboardStrip(
+                        items: [
+                          DashboardWidgetItem(
+                            id: 'weekly-summary',
+                            title: 'Weekly learning summary',
+                            subtitle:
+                                'Attendance, grades, homework, and suggestions.',
+                            icon: Icons.auto_stories_outlined,
+                            color: Colors.indigo,
+                          ),
+                          DashboardWidgetItem(
+                            id: 'attendance-score',
+                            title: 'Consistency score',
+                            subtitle:
+                                'Arrival regularity and absence prediction.',
+                            icon: Icons.verified_user_outlined,
+                            color: Colors.teal,
+                          ),
+                          DashboardWidgetItem(
+                            id: 'improvements',
+                            title: 'Improvement suggestions',
+                            subtitle:
+                                'Small daily actions recommended locally.',
+                            icon: Icons.tips_and_updates_outlined,
+                            color: Colors.deepOrange,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                DashboardSection(
-                  title: 'Fee payment',
+              ),
+              ShellSection(
+                sectionKey: _sectionKeys['attendance']!,
+                child: DashboardSection(
+                  title: 'Attendance progress',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: ParentAttendanceModule(
+                    childName: childName,
+                    attendancePercent: attendancePercent,
+                    notifications: [
+                      for (final n in _notifications)
+                        AttendanceActivityItem(
+                          title: n.title,
+                          subtitle: n.detail,
+                          timestamp: DateTime.now(),
+                          status: n.color == Colors.teal
+                              ? AttendanceStatus.present
+                              : AttendanceStatus.unmarked,
+                          icon: n.icon,
+                        ),
+                    ],
+                    onRefresh: _refreshDashboard,
+                  ),
+                ),
+              ),
+              ShellSection(
+                sectionKey: _sectionKeys['grades']!,
+                child: DashboardSection(
+                  title: loc.grades,
+                  action: AppButton(
+                    label: 'Update',
+                    icon: Icons.refresh,
+                    variant: AppButtonVariant.ghost,
+                    size: AppButtonSize.sm,
+                    onPressed: _loadGrades,
+                  ),
+                  useGlassPanel: false,
+                  child: Column(
+                    children: [
+                      if (grades.isEmpty)
+                        ProgressRow(
+                          label: 'Mathematics',
+                          value: '91%',
+                          percent: 0.91,
+                          color: colorScheme.primary,
+                        )
+                      else
+                        for (var i = 0; i < grades.length; i++)
+                          ProgressRow(
+                            label:
+                                grades[i]['subject']?.toString() ?? 'Subject',
+                            value:
+                                '${(_gradePercent(grades[i]) * 100).round()}%',
+                            percent: _gradePercent(grades[i]),
+                            color: [
+                              colorScheme.primary,
+                              Colors.teal,
+                              Colors.indigo,
+                              Colors.deepOrange,
+                            ][i % 4],
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+              ShellSection(
+                sectionKey: _sectionKeys['ai_tutor']!,
+                child: DashboardSection(
+                  title: 'AI Study Buddy',
                   useGlassPanel: false,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Upload payment receipt so the teacher can verify it.',
+                        'Help your child learn with AI-powered explanations and homework support.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: colorScheme.onSurfaceVariant,
                             ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       AppButton(
-                        label: 'Upload fee proof',
-                        icon: Icons.upload_file_outlined,
-                        onPressed: _uploadFeeProof,
+                        label: 'Open AI Tutor',
+                        icon: Icons.smart_toy_outlined,
+                        onPressed: _openAiTutor,
                         size: AppButtonSize.sm,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                DashboardSection(
-                  title: 'AI progress summary',
-                  useGlassPanel: false,
-                  animate: false,
-                  child: IntelligentInsightsPanel(
-                    audience: 'parent',
-                    primaryScore: attendancePercent,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                const DashboardSection(
-                  title: 'Family dashboard layout',
-                  useGlassPanel: false,
-                  animate: false,
-                  child: PersonalizableDashboardStrip(
-                    items: [
-                      DashboardWidgetItem(
-                        id: 'weekly-summary',
-                        title: 'Weekly learning summary',
-                        subtitle:
-                            'Attendance, grades, homework, and suggestions.',
-                        icon: Icons.auto_stories_outlined,
-                        color: Colors.indigo,
-                      ),
-                      DashboardWidgetItem(
-                        id: 'attendance-score',
-                        title: 'Consistency score',
-                        subtitle: 'Arrival regularity and absence prediction.',
-                        icon: Icons.verified_user_outlined,
-                        color: Colors.teal,
-                      ),
-                      DashboardWidgetItem(
-                        id: 'improvements',
-                        title: 'Improvement suggestions',
-                        subtitle: 'Small daily actions recommended locally.',
-                        icon: Icons.tips_and_updates_outlined,
-                        color: Colors.deepOrange,
+                      const SizedBox(height: AppSpacing.md),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          for (final prompt in const [
+                            'Explain Photosynthesis',
+                            'Teach Algebra',
+                            'Solve 2x + 5 = 15',
+                            'Explain Newton\'s Laws',
+                          ])
+                            ActionChip(
+                              avatar:
+                                  const Icon(Icons.lightbulb_outline, size: 18),
+                              label: Text(prompt),
+                              onPressed: _openAiTutor,
+                            ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              ShellSection(
+                sectionKey: GlobalKey(),
+                child: const DashboardSection(
+                  title: 'Progress trends',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: PremiumAnalyticsPanel(
+                    title: 'Attendance and grade trajectory',
+                    values: [78, 81, 86, 84, 89, 91, 94],
+                  ),
+                ),
+              ),
+              ShellSection(
+                sectionKey: GlobalKey(),
+                child: const DashboardSection(
+                  title: 'Media gallery',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: MediaExperiencePanel(),
+                ),
+              ),
+              ShellSection(
+                sectionKey: _sectionKeys['homework']!,
+                child: DashboardSection(
+                  title: loc.homework,
+                  useGlassPanel: false,
+                  animate: false,
+                  child: const ParentCommunicationModule(initialTab: 1),
+                ),
+              ),
+              ShellSection(
+                sectionKey: _sectionKeys['messages']!,
+                child: DashboardSection(
+                  title: 'Notices & ${loc.chat}',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: const ParentCommunicationModule(initialTab: 2),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+            ],
           ),
-          ShellSection(
-            sectionKey: _sectionKeys['attendance']!,
-            child: DashboardSection(
-              title: 'Attendance progress',
-              useGlassPanel: false,
-              animate: false,
-              child: ParentAttendanceModule(
-                childName: childName,
-                attendancePercent: attendancePercent,
-                notifications: [
-                  for (final n in _notifications)
-                    AttendanceActivityItem(
-                      title: n.title,
-                      subtitle: n.detail,
-                      timestamp: DateTime.now(),
-                      status: n.color == Colors.teal
-                          ? AttendanceStatus.present
-                          : AttendanceStatus.unmarked,
-                      icon: n.icon,
-                    ),
-                ],
-                onRefresh: _refreshDashboard,
+        ),
+        Positioned(
+          right: AppSpacing.lg,
+          bottom: AppSpacing.xxl,
+          child: SafeArea(
+            child: Tooltip(
+              message: 'AI Study Buddy',
+              child: FloatingActionButton(
+                heroTag: 'parent-ai-study-buddy',
+                onPressed: _openAiTutor,
+                child: const Icon(Icons.smart_toy),
               ),
             ),
           ),
-          ShellSection(
-            sectionKey: _sectionKeys['grades']!,
-            child: DashboardSection(
-              title: loc.grades,
-              action: AppButton(
-                label: 'Update',
-                icon: Icons.refresh,
-                variant: AppButtonVariant.ghost,
-                size: AppButtonSize.sm,
-                onPressed: _loadGrades,
-              ),
-              useGlassPanel: false,
-              child: Column(
-                children: [
-                  if (grades.isEmpty)
-                    ProgressRow(
-                      label: 'Mathematics',
-                      value: '91%',
-                      percent: 0.91,
-                      color: colorScheme.primary,
-                    )
-                  else
-                    for (var i = 0; i < grades.length; i++)
-                      ProgressRow(
-                        label: grades[i]['subject']?.toString() ?? 'Subject',
-                        value: '${(_gradePercent(grades[i]) * 100).round()}%',
-                        percent: _gradePercent(grades[i]),
-                        color: [
-                          colorScheme.primary,
-                          Colors.teal,
-                          Colors.indigo,
-                          Colors.deepOrange,
-                        ][i % 4],
-                      ),
-                ],
-              ),
-            ),
-          ),
-          ShellSection(
-            sectionKey: GlobalKey(),
-            child: const DashboardSection(
-              title: 'Progress trends',
-              useGlassPanel: false,
-              animate: false,
-              child: PremiumAnalyticsPanel(
-                title: 'Attendance and grade trajectory',
-                values: [78, 81, 86, 84, 89, 91, 94],
-              ),
-            ),
-          ),
-          ShellSection(
-            sectionKey: GlobalKey(),
-            child: const DashboardSection(
-              title: 'Media gallery',
-              useGlassPanel: false,
-              animate: false,
-              child: MediaExperiencePanel(),
-            ),
-          ),
-          ShellSection(
-            sectionKey: _sectionKeys['homework']!,
-            child: DashboardSection(
-              title: loc.homework,
-              useGlassPanel: false,
-              animate: false,
-              child: const ParentCommunicationModule(initialTab: 1),
-            ),
-          ),
-          ShellSection(
-            sectionKey: _sectionKeys['messages']!,
-            child: DashboardSection(
-              title: 'Notices & ${loc.chat}',
-              useGlassPanel: false,
-              animate: false,
-              child: const ParentCommunicationModule(initialTab: 2),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

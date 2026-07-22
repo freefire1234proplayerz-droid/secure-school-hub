@@ -6,9 +6,9 @@ import { query } from './db.js';
 const password = 'password123';
 
 const demoUsers = [
-  { email: 'admin@school.com', role: 'admin' },
-  { email: 'teacher@school.com', role: 'teacher' },
-  { email: 'parent@school.com', role: 'parent' },
+  { email: 'admin@school.com', role: 'admin', firstName: 'Secure', lastName: 'Admin' },
+  { email: 'teacher@school.com', role: 'teacher', firstName: 'Demo', lastName: 'Teacher' },
+  { email: 'parent@school.com', role: 'parent', firstName: 'Demo', lastName: 'Parent' },
 ];
 
 const demoStudents = [
@@ -58,6 +58,17 @@ export async function ensureDatabaseReady() {
   `);
 
   await query('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;', []);
+  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;', []);
+  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT;', []);
+  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;', []);
+  await query("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';", []);
+  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_at TIMESTAMP WITH TIME ZONE;', []);
+  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();', []);
+  await query('ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();', []);
+  await query(
+    "UPDATE users SET status = 'active' WHERE status IS NULL OR status = '';",
+    [],
+  );
 
   await query(`
     CREATE TABLE IF NOT EXISTS students (
@@ -91,6 +102,8 @@ export async function ensureDatabaseReady() {
     ['roll_no', 'TEXT'],
     ['parent_user_id', 'INTEGER REFERENCES users(id)'],
     ['qr_code', 'TEXT'],
+    ['admission_no', 'TEXT'],
+    ['status', "TEXT NOT NULL DEFAULT 'active'"],
   ];
 
   for (const [name, type] of studentColumns) {
@@ -99,6 +112,10 @@ export async function ensureDatabaseReady() {
 
   await query(
     'CREATE UNIQUE INDEX IF NOT EXISTS students_qr_code_unique ON students(qr_code);',
+    [],
+  );
+  await query(
+    'CREATE UNIQUE INDEX IF NOT EXISTS students_admission_no_unique ON students(admission_no);',
     [],
   );
 
@@ -112,6 +129,22 @@ export async function ensureDatabaseReady() {
     );
   `);
   await query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS student_id INTEGER REFERENCES students(id);', []);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      actor_user_id INTEGER REFERENCES users(id),
+      target_user_id INTEGER REFERENCES users(id),
+      target_student_id INTEGER REFERENCES students(id),
+      action TEXT NOT NULL,
+      category TEXT NOT NULL,
+      detail TEXT,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    );
+  `);
 
   await query(`
     CREATE TABLE IF NOT EXISTS homework (
@@ -162,8 +195,15 @@ export async function ensureDatabaseReady() {
       `INSERT INTO users (email, password_hash, role, totp_secret)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (email)
-       DO UPDATE SET password_hash = $2, role = $3`,
+       DO UPDATE SET password_hash = $2, role = $3, status = 'active'`,
       [user.email, hash, user.role, authenticator.generateSecret()],
+    );
+    await query(
+      `UPDATE users
+       SET first_name = COALESCE(first_name, $2),
+           last_name = COALESCE(last_name, $3)
+       WHERE email = $1`,
+      [user.email, user.firstName, user.lastName],
     );
   }
 
@@ -190,9 +230,11 @@ export async function ensureDatabaseReady() {
          class_name,
          roll_no,
          parent_user_id,
-         qr_code
+         qr_code,
+         admission_no,
+         status
        )
-       VALUES ($1, $2, 8, 'A', $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, 8, 'A', $3, $4, $5, $6, $7, $8, $9, 'active')
        ON CONFLICT (qr_code)
        DO UPDATE SET
          first_name = EXCLUDED.first_name,
@@ -203,7 +245,9 @@ export async function ensureDatabaseReady() {
          name = EXCLUDED.name,
          class_name = EXCLUDED.class_name,
          roll_no = EXCLUDED.roll_no,
-         parent_user_id = COALESCE(students.parent_user_id, EXCLUDED.parent_user_id)`,
+         parent_user_id = COALESCE(students.parent_user_id, EXCLUDED.parent_user_id),
+         admission_no = COALESCE(students.admission_no, EXCLUDED.admission_no),
+         status = COALESCE(students.status, 'active')`,
       [
         student.firstName,
         student.lastName,
@@ -213,6 +257,7 @@ export async function ensureDatabaseReady() {
         student.rollNo,
         parentUserId,
         student.qrCode,
+        student.qrCode.replace('SSHUB-STUDENT-', 'SSH-'),
       ],
     );
   }

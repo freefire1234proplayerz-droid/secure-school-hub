@@ -38,6 +38,22 @@ class ApiService {
     }
   }
 
+  Future<Response> patch(String path, {Map<String, dynamic>? data}) async {
+    try {
+      return await _dio.patch(path, data: data);
+    } on DioException {
+      rethrow;
+    }
+  }
+
+  Future<String> downloadText(String path) async {
+    final res = await _dio.get<String>(
+      path,
+      options: Options(responseType: ResponseType.plain),
+    );
+    return res.data ?? '';
+  }
+
   // Simple offline sync pattern: store pending actions in Hive if offline.
   Future<void> syncPendingActions() async {
     final pending = LocalDb.getCache('pendingActions') as List<dynamic>? ?? [];

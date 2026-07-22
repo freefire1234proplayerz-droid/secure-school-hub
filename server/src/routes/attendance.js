@@ -1,6 +1,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { query } from '../db.js';
+import { logAudit } from '../utils/audit.js';
 
 export const attendanceRouter = express.Router();
 
@@ -13,7 +14,7 @@ const demoStudents = [
   },
   {
     name: 'Isha Mehta',
-    className: 'Class 8A',
+    className: 'Class 8B',
     rollNo: '08A-02',
     qrCode: 'SSHUB-STUDENT-08A-002',
   },
@@ -282,6 +283,17 @@ attendanceRouter.post('/mark', authRequired, async (req, res) => {
        RETURNING id, marked_at`,
       [req.user.sub, student.id, req.body.qr],
     );
+
+  if (alreadyMarked.rowCount === 0) {
+    await logAudit({
+      req,
+      targetStudentId: student.id,
+      action: 'attendance_marked',
+      category: 'attendance_actions',
+      detail: `${student.name} marked present`,
+      metadata: { className: student.class_name, rollNo: student.roll_no },
+    });
+  }
 
   const markedAt = attendanceResult.rows[0].marked_at;
   let notification = null;
