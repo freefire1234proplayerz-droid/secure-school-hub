@@ -223,3 +223,49 @@ https://github.com/freefire1234proplayerz-droid
 ---
 
 ⭐ If you like this project, consider giving it a Star.
+
+---
+
+## Backend Configuration
+
+Copy `server/.env.example` to `server/.env` and configure the required values:
+
+```bash
+cd server
+cp .env.example .env
+```
+
+Important variables include `DATABASE_URL`, `JWT_SECRET`, `MESSAGE_ENC_KEY`, and the Razorpay credentials `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`. Use strong, unique secrets and never commit `.env` files or credentials.
+
+## Local Development and Health Check
+
+Start the backend dependencies with Docker Compose if you are using the included Docker setup:
+
+```bash
+docker compose up -d --build
+```
+
+The API listens on port 4000 by default. Check its health with:
+
+```bash
+curl -i http://localhost:4000/api/health
+```
+
+For local Flutter development, point the app at the local API using the compile-time base URL:
+
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:4000/api
+```
+
+Configure Firebase for your target platform before relying on Firebase Cloud Messaging.
+
+## Deployment Notes
+
+For Linux deployment, configure the database and API environment securely before exposing the service. Use HTTPS through a properly configured reverse proxy, restrict inbound ports with a firewall, and rotate any default or previously exposed credentials. Review the supplied Docker Compose and deployment scripts before running them in a production environment.
+
+## Security Notes
+
+- Chat messages use server-side AES encryption via `MESSAGE_ENC_KEY`; this is not end-to-end encryption because the server can decrypt messages. True E2E encryption requires client-held keys and no server-side decryption.
+- Use unique strong values for all secrets in `.env`; never commit real secrets.
+- Restrict network-scanning targets to authorized internal systems only.
+- Back up encryption keys securely. Rotating `MESSAGE_ENC_KEY` can make existing encrypted messages unreadable unless you migrate them.
