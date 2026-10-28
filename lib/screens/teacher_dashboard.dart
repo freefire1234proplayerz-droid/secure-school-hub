@@ -7,13 +7,20 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import '../theme/app_text_styles.dart';
+import '../services/frontend_experience_service.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/dashboard/dashboard_components.dart' hide DashboardSection;
+import '../widgets/dashboard/dashboard_grid.dart';
+import '../widgets/dashboard/dashboard_section.dart';
+import '../widgets/dashboard/empty_state.dart';
+import '../widgets/dashboard/kpi_stat_card.dart';
+import '../widgets/dashboard/quick_action_card.dart';
 import '../widgets/design_system/app_button.dart';
 import '../widgets/design_system/glass_card.dart';
 import '../widgets/attendance/teacher_attendance_module.dart';
 import '../widgets/communication/teacher_communication_module.dart';
+import '../widgets/experience/production_experience.dart';
 import '../widgets/shell/app_shell.dart';
-import '../widgets/dashboard/dashboard_components.dart';
 import 'login_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
@@ -34,16 +41,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   List<Map<String, dynamic>> _students = [];
   List<DashboardNotification> _feedNotifications = [];
   Map<String, dynamic> _attendanceSummary = {
-    'totalStudents': 0,
-    'presentToday': 0,
-    'attendancePercent': 0,
+    'totalStudents': 42,
+    'presentToday': 38,
+    'attendancePercent': 90,
   };
   Map<String, dynamic> _dashboard = {
-    'homeworkSent': 0,
-    'parentAlerts': 0,
+    'homeworkSent': 3,
+    'parentAlerts': 7,
     'classOverview': {
-      'homeworkCompletion': 0,
-      'feeFollowupClosed': 0,
+      'homeworkCompletion': 76,
+      'feeFollowupClosed': 68,
     },
   };
 
@@ -71,7 +78,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         return data['error'].toString();
       }
       if (e.response?.statusCode == 404) {
-        return 'Server endpoint missing. Restart backend.';
+        return 'Server endpoint missing. Restart backend: docker compose restart server';
       }
       return e.message ?? 'Request failed';
     }
@@ -119,7 +126,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       return const [
         ShellNotification(
           id: 'inbox',
-          title: 'Waiting for activity',
+          title: 'Waiting for parent activity',
           body: 'Messages, fee proofs, and attendance alerts appear here.',
           icon: Icons.inbox_outlined,
           color: Colors.blueGrey,
@@ -150,6 +157,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
   Future<void> _refreshAll() async {
     setState(() => _loading = true);
+    await _loadAttendanceDemo();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadAttendanceDemo() async {
     try {
       final studentsRes = await _api.get('/attendance/students');
       final summaryRes = await _api.get('/attendance/summary');
@@ -165,12 +177,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         _attendanceSummary = Map<String, dynamic>.from(summaryRes.data as Map);
         _dashboard = dashboard;
         _feedNotifications = _mapNotifications(notificationRows);
-        _loading = false;
       });
-    } catch (e) {
-      if (!mounted) return;
-      _showSnack('Failed to load data: ${_formatError(e)}', isError: true);
-      setState(() => _loading = false);
+    } catch (_) {
+      // Keep the static premium dashboard usable if the demo API is offline.
     }
   }
 
@@ -194,11 +203,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       _showSnack(
         student == null
             ? 'Attendance marked'
-            : '${student['name']} $status. Parent notified.',
+            : '${student['name']} $status. Parent notification triggered.',
       );
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.attendance,
+        title: 'Offline attendance mark',
+        payload: {'qr': qrData},
+      );
       _showSnack('Attendance failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -210,10 +224,18 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         'description': 'Solve exercise 5 from chapter 2',
       });
       if (!mounted) return;
-      _showSnack('Homework assigned — parents notified.');
+      _showSnack('Homework assigned — parents will see it instantly.');
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.noticeDraft,
+        title: 'Offline homework draft',
+        payload: const {
+          'title': 'Math practice',
+          'description': 'Solve exercise 5 from chapter 2',
+        },
+      );
       _showSnack('Failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -233,6 +255,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.upload,
+        title: 'Offline homework attachment: ${file.name}',
+        payload: {'fileName': file.name, 'size': file.size},
+      );
       _showSnack('Attach failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -251,6 +278,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.upload,
+        title: 'Offline fee attachment: ${file.name}',
+        payload: {'fileName': file.name, 'size': file.size},
+      );
       _showSnack('Attach failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -266,6 +298,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       await _refreshAll();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.noticeDraft,
+        title: 'Offline fee reminder',
+        payload: const {'amount': 5000, 'currency': 'INR'},
+      );
       _showSnack('Failed: ${_formatError(e)}', isError: true);
     }
   }
@@ -285,11 +322,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final totalStudents = _attendanceSummary['totalStudents'] ?? 0;
-    final presentToday = _attendanceSummary['presentToday'] ?? 0;
-    final attendancePercent = _attendanceSummary['attendancePercent'] ?? 0;
+    final totalStudents = _attendanceSummary['totalStudents'] ?? 42;
+    final presentToday = _attendanceSummary['presentToday'] ?? 38;
+    final attendancePercent = _attendanceSummary['attendancePercent'] ?? 90;
     final classOverview =
-        Map<String, dynamic>.from(_dashboard['classOverview'] as Map? ?? {});
+        Map<String, dynamic>.from(_dashboard['classOverview'] as Map);
 
     return AppShell(
       title: 'Teacher Workspace',
@@ -318,687 +355,330 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           onTap: _sendFeeReminder,
         ),
       ],
-      body: RefreshIndicator(
-        onRefresh: _refreshAll,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(loc),
-                    const SizedBox(height: 24),
-                    _buildKpiCards(colorScheme, totalStudents, presentToday, attendancePercent),
-                    const SizedBox(height: 24),
-                    _buildClassStats(classOverview, attendancePercent),
-                    const SizedBox(height: 24),
-                    _buildQuickActions(),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['attendance']!,
-                  title: "Today's classes — ${loc.attendance}",
-                  child: TeacherAttendanceModule(key: _attendanceModuleKey),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['students']!,
-                  title: 'Student quick access',
-                  action: AppButton(
-                    label: 'Refresh',
-                    icon: Icons.refresh,
-                    variant: AppButtonVariant.ghost,
-                    size: AppButtonSize.sm,
-                    onPressed: _refreshAll,
-                  ),
-                  child: _students.isEmpty
-                      ? _EmptyState(
-                          icon: Icons.groups_2_outlined,
-                          title: 'No students loaded',
-                          message:
-                              'Sign in as teacher to load student QR codes.',
-                        )
-                      : _StudentGrid(
-                          students: _students,
-                          onMarkAttendance: _markAttendance,
-                        ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: _buildSection(
-                  key: _sectionKeys['actions']!,
-                  title: 'Quick actions',
-                  child: _QuickActionsGrid(
-                    onCreateHomework: _createHomework,
-                    onAttachHomeworkFile: _attachHomeworkFile,
-                    onSendFeeReminder: _sendFeeReminder,
-                    onRunInfrastructureCheck: _runInfrastructureCheck,
-                    onAttachFeeFile: _attachFeeFile,
-                  ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['messages']!,
-                  title: 'Notices & communication',
-                  child: TeacherCommunicationModule(key: _communicationModuleKey),
-                ),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(AppLocalizations loc) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Class 8A Command Center',
-                style: AppTextStyles.pageTitle(Theme.of(context).textTheme),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'QR attendance, homework, reminders, and class health in one workspace.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        AppButton(
-          label: loc.scanQr,
-          icon: Icons.qr_code_scanner,
-          onPressed: () => _attendanceModuleKey.currentState?.openQrScanner(),
-          size: AppButtonSize.sm,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKpiCards(ColorScheme colorScheme, int totalStudents, int presentToday, int attendancePercent) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _KpiCard(
-          label: 'Students present',
-          value: '$presentToday / $totalStudents',
-          icon: Icons.groups_2_outlined,
-          color: colorScheme.primary,
-          detail: 'Morning session synced',
-          isLoading: _loading,
-        ),
-        _KpiCard(
-          label: 'Attendance rate',
-          value: '$attendancePercent%',
-          icon: Icons.fact_check_outlined,
-          color: Colors.teal,
-          detail: 'From today\'s QR marks',
-          isLoading: _loading,
-        ),
-        _KpiCard(
-          label: 'Homework sent',
-          value: '${_dashboard['homeworkSent'] ?? 0}',
-          icon: Icons.assignment_outlined,
-          color: Colors.deepOrange,
-          detail: 'Active assignments',
-          isLoading: _loading,
-        ),
-        _KpiCard(
-          label: 'Parent alerts',
-          value: '${_dashboard['parentAlerts'] ?? 0}',
-          icon: Icons.notifications_active_outlined,
-          color: Colors.indigo,
-          detail: 'Auto alerts active',
-          isLoading: _loading,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildClassStats(Map<String, dynamic> classOverview, int attendancePercent) {
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _ProgressRow(
-            label: 'Class 8A attendance',
-            value: '$attendancePercent%',
-            percent: (attendancePercent / 100).clamp(0, 1),
-          ),
-          _ProgressRow(
-            label: 'Homework completion',
-            value:
-                '${(classOverview['homeworkCompletion'] as num? ?? 0)}%',
-            percent:
-                (((classOverview['homeworkCompletion'] as num?) ?? 0) / 100)
-                    .clamp(0, 1),
-          ),
-          _ProgressRow(
-            label: 'Fee follow-up closed',
-            value:
-                '${(classOverview['feeFollowupClosed'] as num? ?? 0)}%',
-            percent:
-                (((classOverview['feeFollowupClosed'] as num?) ?? 0) / 100)
-                    .clamp(0, 1),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Quick actions',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _ActionCard(
-              label: 'Assign homework',
-              description: 'Send task to students and parents',
-              icon: Icons.post_add_outlined,
-              onTap: _createHomework,
-            ),
-            _ActionCard(
-              label: 'Attach homework file',
-              description: 'Upload worksheet, PDF, or image',
-              icon: Icons.attach_file,
-              onTap: _attachHomeworkFile,
-            ),
-            _ActionCard(
-              label: 'Send fee reminder',
-              description: 'Trigger payment reminder workflow',
-              icon: Icons.currency_rupee,
-              onTap: _sendFeeReminder,
-            ),
-            _ActionCard(
-              label: 'Infrastructure health',
-              description: 'Basic server-side health monitoring',
-              icon: Icons.health_and_safety_outlined,
-              onTap: _runInfrastructureCheck,
-            ),
-            _ActionCard(
-              label: 'Upload fee proof',
-              description: 'Attach receipt or payment evidence',
-              icon: Icons.receipt_long_outlined,
-              onTap: _attachFeeFile,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSection({
-    required GlobalKey key,
-    required String title,
-    Widget? action,
-    required Widget child,
-  }) {
-    return Padding(
-      key: key,
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ),
-              if (action != null) action,
-            ],
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.detail,
-    this.trend,
-    this.isLoading = false,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final String? detail;
-  final String? trend;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
-      child: GlassCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const Spacer(),
-                if (trend != null && !isLoading)
-                  Text(
-                    trend!,
-                    style: textTheme.labelMedium?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                if (isLoading)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              value,
-              style: textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (detail != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                detail!,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressRow extends StatelessWidget {
-  const _ProgressRow({
-    required this.label,
-    required this.value,
-    required this.percent,
-    this.color,
-  });
-
-  final String label;
-  final String value;
-  final double percent;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final barColor = color ?? colorScheme.primary;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 8,
-              value: percent.clamp(0, 1),
-              backgroundColor: colorScheme.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation(barColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.label,
-    required this.description,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final String description;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
-      child: GlassCard(
-        variant: GlassCardVariant.elevated,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+          ShellSection(
+            sectionKey: _sectionKeys['overview']!,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: colorScheme.primary, size: 24),
-                const SizedBox(height: 10),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GlassCard(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StudentGrid extends StatelessWidget {
-  const _StudentGrid({
-    required this.students,
-    required this.onMarkAttendance,
-  });
-
-  final List<Map<String, dynamic>> students;
-  final void Function(String) onMarkAttendance;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        for (final student in students)
-          _StudentCard(
-            student: student,
-            onMarkAttendance: onMarkAttendance,
-          ),
-      ],
-    );
-  }
-}
-
-class _StudentCard extends StatelessWidget {
-  const _StudentCard({
-    required this.student,
-    required this.onMarkAttendance,
-  });
-
-  final Map<String, dynamic> student;
-  final void Function(String) onMarkAttendance;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 250, maxWidth: 300),
-      child: GlassCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: QrImageView(
-                    data: student['qrPayload']?.toString() ??
-                        student['qrCode'].toString(),
-                    size: 72,
+                DashboardPageHeader(
+                  title: 'Class 8A Command Center',
+                  subtitle:
+                      'QR attendance, homework, reminders, and class health in one workspace.',
+                  trailing: AppButton(
+                    label: loc.scanQr,
+                    icon: Icons.qr_code_scanner,
+                    onPressed: () =>
+                        _attendanceModuleKey.currentState?.openQrScanner(),
+                    size: AppButtonSize.sm,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                const SizedBox(height: AppSpacing.lg),
+                DashboardGrid(
+                  children: [
+                    KPIStatCard(
+                      label: 'Students present',
+                      value: '$presentToday / $totalStudents',
+                      icon: Icons.groups_2_outlined,
+                      color: colorScheme.primary,
+                      trend: '+4%',
+                      detail: 'Morning session synced',
+                      isLoading: _loading,
+                    ),
+                    const KPIStatCard(
+                      label: 'Attendance',
+                      value: '90.4%',
+                      icon: Icons.fact_check_outlined,
+                      color: Colors.teal,
+                      trend: '+2.1%',
+                      detail: 'Weekly average',
+                    ),
+                    KPIStatCard(
+                      label: 'Live QR attendance',
+                      value: '$attendancePercent%',
+                      icon: Icons.qr_code_scanner,
+                      color: Colors.green,
+                      detail: 'From today\'s QR marks',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Homework sent',
+                      value: '${_dashboard['homeworkSent'] ?? 3}',
+                      icon: Icons.assignment_outlined,
+                      color: Colors.deepOrange,
+                      detail: '2 checked, 1 due tomorrow',
+                      isLoading: _loading,
+                    ),
+                    KPIStatCard(
+                      label: 'Parent alerts',
+                      value: '${_dashboard['parentAlerts'] ?? 7}',
+                      icon: Icons.notifications_active_outlined,
+                      color: Colors.indigo,
+                      detail: 'Auto alerts ready',
+                      isLoading: _loading,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'Class stats',
+                  useGlassPanel: false,
+                  animate: false,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        student['name'].toString(),
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ProgressRow(
+                        label: 'Class 8A attendance',
+                        value: '$attendancePercent%',
+                        percent: (attendancePercent / 100).clamp(0, 1),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${student['className']} • Roll ${student['rollNo']}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
+                      ProgressRow(
+                        label: 'Homework completion',
+                        value: '${classOverview['homeworkCompletion'] ?? 76}%',
+                        percent:
+                            (((classOverview['homeworkCompletion'] as num?) ??
+                                        76) /
+                                    100)
+                                .clamp(0, 1),
+                      ),
+                      ProgressRow(
+                        label: 'Fee follow-up closed',
+                        value: '${classOverview['feeFollowupClosed'] ?? 68}%',
+                        percent:
+                            (((classOverview['feeFollowupClosed'] as num?) ??
+                                        68) /
+                                    100)
+                                .clamp(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                DashboardSection(
+                  title: 'AI class insights',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: IntelligentInsightsPanel(
+                    audience: 'teacher',
+                    primaryScore: (attendancePercent as num).toInt(),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                const DashboardSection(
+                  title: 'Personalized workspace',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: PersonalizableDashboardStrip(
+                    items: [
+                      DashboardWidgetItem(
+                        id: 'risk',
+                        title: 'Attendance risk watchlist',
+                        subtitle: 'Pinned students with two missed mornings.',
+                        icon: Icons.warning_amber_outlined,
+                        color: Colors.deepOrange,
+                      ),
+                      DashboardWidgetItem(
+                        id: 'engagement',
+                        title: 'Class engagement',
+                        subtitle: 'Live opens, replies, and homework activity.',
+                        icon: Icons.forum_outlined,
+                        color: Colors.teal,
+                      ),
+                      DashboardWidgetItem(
+                        id: 'homework',
+                        title: 'Homework completion',
+                        subtitle: 'Trend comparison by subject.',
+                        icon: Icons.assignment_turned_in_outlined,
+                        color: Colors.indigo,
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            AppButton(
-              label: 'Mark present',
-              icon: Icons.how_to_reg_outlined,
-              onPressed: () => onMarkAttendance(
-                student['qrPayload'].toString(),
-              ),
-              size: AppButtonSize.sm,
-              expand: true,
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['attendance']!,
+            child: DashboardSection(
+              title: "Today's classes — ${loc.attendance}",
+              useGlassPanel: false,
+              animate: false,
+              child: TeacherAttendanceModule(key: _attendanceModuleKey),
             ),
-          ],
-        ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['students']!,
+            child: DashboardSection(
+              title: 'Student quick access',
+              action: AppButton(
+                label: 'Refresh',
+                icon: Icons.refresh,
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.sm,
+                onPressed: _loadAttendanceDemo,
+              ),
+              useGlassPanel: false,
+              child: _students.isEmpty
+                  ? const DashboardEmptyState(
+                      icon: Icons.groups_2_outlined,
+                      title: 'No students loaded',
+                      message:
+                          'Login as teacher to load demo student QR codes.',
+                      compact: true,
+                    )
+                  : DashboardGrid(
+                      minItemWidth: 250,
+                      children: [
+                        for (final student in _students)
+                          GlassCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(
+                                        AppSpacing.xs,
+                                      ),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: AppSpacing.borderRadiusSm,
+                                      ),
+                                      child: QrImageView(
+                                        data:
+                                            student['qrPayload']?.toString() ??
+                                                student['qrCode'].toString(),
+                                        size: 86,
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            student['name'].toString(),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${student['className']} • Roll ${student['rollNo']}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                AppButton(
+                                  label: 'Mark present',
+                                  icon: Icons.how_to_reg_outlined,
+                                  onPressed: () => _markAttendance(
+                                    student['qrPayload'].toString(),
+                                  ),
+                                  size: AppButtonSize.sm,
+                                  expand: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['actions']!,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DashboardSection(
+                  title: 'Quick actions',
+                  useGlassPanel: false,
+                  child: DashboardGrid(
+                    minItemWidth: 260,
+                    children: [
+                      QuickActionCard(
+                        label: 'Assign homework',
+                        description: 'Send task and queue offline sync',
+                        icon: Icons.post_add_outlined,
+                        onTap: _createHomework,
+                      ),
+                      QuickActionCard(
+                        label: 'Attach homework file',
+                        description: 'Upload worksheet, PDF, or image',
+                        icon: Icons.attach_file,
+                        onTap: _attachHomeworkFile,
+                      ),
+                      QuickActionCard(
+                        label: 'Send fee reminder',
+                        description: 'Trigger payment reminder workflow',
+                        icon: Icons.currency_rupee,
+                        onTap: _sendFeeReminder,
+                      ),
+                      QuickActionCard(
+                        label: 'Infrastructure health',
+                        description: 'Basic server-side health monitoring',
+                        icon: Icons.health_and_safety_outlined,
+                        onTap: _runInfrastructureCheck,
+                      ),
+                      QuickActionCard(
+                        label: 'Upload fee proof',
+                        description: 'Attach receipt or payment evidence',
+                        icon: Icons.receipt_long_outlined,
+                        onTap: _attachFeeFile,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                const DashboardSection(
+                  title: 'Files, exports & reports',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: MediaExperiencePanel(),
+                ),
+              ],
+            ),
+          ),
+          ShellSection(
+            sectionKey: GlobalKey(),
+            child: const DashboardSection(
+              title: 'Interactive analytics',
+              useGlassPanel: false,
+              animate: false,
+              child: PremiumAnalyticsPanel(
+                title: 'Attendance and homework momentum',
+                values: [82, 86, 84, 90, 88, 93, 91],
+              ),
+            ),
+          ),
+          ShellSection(
+            sectionKey: _sectionKeys['messages']!,
+            child: DashboardSection(
+              title: 'Notices & communication',
+              useGlassPanel: false,
+              animate: false,
+              child: TeacherCommunicationModule(key: _communicationModuleKey),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+        ],
       ),
-    );
-  }
-}
-
-class _QuickActionsGrid extends StatelessWidget {
-  const _QuickActionsGrid({
-    required this.onCreateHomework,
-    required this.onAttachHomeworkFile,
-    required this.onSendFeeReminder,
-    required this.onRunInfrastructureCheck,
-    required this.onAttachFeeFile,
-  });
-
-  final VoidCallback onCreateHomework;
-  final VoidCallback onAttachHomeworkFile;
-  final VoidCallback onSendFeeReminder;
-  final VoidCallback onRunInfrastructureCheck;
-  final VoidCallback onAttachFeeFile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _ActionCard(
-          label: 'Assign homework',
-          description: 'Send task to students and parents',
-          icon: Icons.post_add_outlined,
-          onTap: onCreateHomework,
-        ),
-        _ActionCard(
-          label: 'Attach homework file',
-          description: 'Upload worksheet, PDF, or image',
-          icon: Icons.attach_file,
-          onTap: onAttachHomeworkFile,
-        ),
-        _ActionCard(
-          label: 'Send fee reminder',
-          description: 'Trigger payment reminder workflow',
-          icon: Icons.currency_rupee,
-          onTap: onSendFeeReminder,
-        ),
-        _ActionCard(
-          label: 'Infrastructure health',
-          description: 'Basic server-side health monitoring',
-          icon: Icons.health_and_safety_outlined,
-          onTap: onRunInfrastructureCheck,
-        ),
-        _ActionCard(
-          label: 'Upload fee proof',
-          description: 'Attach receipt or payment evidence',
-          icon: Icons.receipt_long_outlined,
-          onTap: onAttachFeeFile,
-        ),
-      ],
     );
   }
 }

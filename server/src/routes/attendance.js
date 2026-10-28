@@ -2,9 +2,137 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { logAudit } from '../utils/audit.js';
-import { attendanceMarkValidation } from '../middleware/validate.js';
 
 export const attendanceRouter = express.Router();
+
+const demoStudents = [
+  {
+    name: 'Aarav Sharma',
+    className: 'Class 8A',
+    rollNo: '08A-01',
+    qrCode: 'SSHUB-STUDENT-08A-001',
+  },
+  {
+    name: 'Isha Mehta',
+    className: 'Class 8B',
+    rollNo: '08A-02',
+    qrCode: 'SSHUB-STUDENT-08A-002',
+  },
+  {
+    name: 'Kabir Rao',
+    className: 'Class 8A',
+    rollNo: '08A-03',
+    qrCode: 'SSHUB-STUDENT-08A-003',
+  },
+  {
+    name: 'Meera Iyer',
+    className: 'Class 8A',
+    rollNo: '08A-04',
+    qrCode: 'SSHUB-STUDENT-08A-004',
+  },
+];
+
+let demoReady = false;
+
+async function ensureDemoAttendanceData() {
+  if (demoReady) return;
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS students (
+      id SERIAL PRIMARY KEY,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      grade INTEGER,
+      section TEXT,
+      roll_number TEXT UNIQUE,
+      name TEXT,
+      class_name TEXT,
+      roll_no TEXT,
+      parent_user_id INTEGER REFERENCES users(id),
+      qr_code TEXT UNIQUE NOT NULL
+    );
+  `);
+
+  await query('ALTER TABLE students ADD COLUMN IF NOT EXISTS name TEXT;', []);
+  await query('ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name TEXT;', []);
+  await query('ALTER TABLE students ADD COLUMN IF NOT EXISTS roll_no TEXT;', []);
+  await query('ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_user_id INTEGER REFERENCES users(id);', []);
+  await query('ALTER TABLE students ADD COLUMN IF NOT EXISTS qr_code TEXT;', []);
+  await query(
+    'CREATE UNIQUE INDEX IF NOT EXISTS students_qr_code_unique ON students(qr_code);',
+    [],
+  );
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      type TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+      read_at TIMESTAMP WITH TIME ZONE
+    );
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS attendance (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      qr_data TEXT NOT NULL,
+      marked_at TIMESTAMP WITH TIME ZONE NOT NULL
+    );
+  `);
+
+  await query(`
+    ALTER TABLE attendance
+    ADD COLUMN IF NOT EXISTS student_id INTEGER REFERENCES students(id);
+  `);
+
+  const parentResult = await query(
+    "SELECT id FROM users WHERE role = 'parent' ORDER BY id LIMIT 1",
+    [],
+  );
+  const parentUserId = parentResult.rows[0]?.id ?? null;
+
+  for (const student of demoStudents) {
+    const [firstName, ...lastNameParts] = student.name.split(' ');
+    const lastName = lastNameParts.join(' ') || 'Student';
+    await query(
+      `INSERT INTO students (
+         first_name,
+         last_name,
+         grade,
+         section,
+         roll_number,
+         name,
+         class_name,
+         roll_no,
+         parent_user_id,
+         qr_code
+       )
+       VALUES ($1, $2, 8, 'A', $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (qr_code)
+       DO UPDATE SET
+         name = EXCLUDED.name,
+         class_name = EXCLUDED.class_name,
+         roll_no = EXCLUDED.roll_no,
+         parent_user_id = COALESCE(students.parent_user_id, EXCLUDED.parent_user_id)`,
+      [
+        firstName,
+        lastName,
+        student.rollNo,
+        student.name,
+        student.className,
+        student.rollNo,
+        parentUserId,
+        student.qrCode,
+      ],
+    );
+  }
+
+  demoReady = true;
+}
 
 function parseQrPayload(rawQr) {
   const qr = String(rawQr || '').trim();
@@ -42,6 +170,8 @@ function toStudentDto(row) {
 }
 
 attendanceRouter.get('/students', authRequired, async (req, res) => {
+  await ensureDemoAttendanceData();
+
   const result = await query(
     `SELECT
        id,
@@ -59,7 +189,9 @@ attendanceRouter.get('/students', authRequired, async (req, res) => {
 });
 
 attendanceRouter.get('/summary', authRequired, async (req, res) => {
-  const studentsResult = await query('SELECT COUNT(*)::int AS total FROM students WHERE qr_code IS NOT NULL', []);
+  await ensureDemoAttendanceData();
+
+  const studentsResult = await query('SELECT COUNT(*)::int AS total FROM students', []);
   const presentResult = await query(
     `SELECT COUNT(DISTINCT student_id)::int AS present
      FROM attendance
@@ -95,7 +227,9 @@ attendanceRouter.get('/summary', authRequired, async (req, res) => {
   });
 });
 
-attendanceRouter.post('/mark', authRequired, attendanceMarkValidation, async (req, res) => {
+attendanceRouter.post('/mark', authRequired, async (req, res) => {
+  await ensureDemoAttendanceData();
+
   const parsed = parseQrPayload(req.body.qr);
   if (!parsed) {
     return res.status(400).json({ error: 'Missing QR data' });
@@ -187,6 +321,8 @@ attendanceRouter.post('/mark', authRequired, attendanceMarkValidation, async (re
 });
 
 attendanceRouter.get('/notifications', authRequired, async (req, res) => {
+  await ensureDemoAttendanceData();
+
   const result = await query(
     `SELECT id, title, body, type, created_at, read_at
      FROM notifications

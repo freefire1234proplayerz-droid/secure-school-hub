@@ -5,13 +5,6 @@ import { authenticator } from 'otplib';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { logAudit } from '../utils/audit.js';
-import {
-  adminUserCreateValidation,
-  adminUserStatusValidation,
-  adminPasswordResetValidation,
-  adminUsersQueryValidation,
-  auditLogsQueryValidation,
-} from '../middleware/validate.js';
 
 export const adminUsersRouter = express.Router();
 
@@ -102,7 +95,7 @@ async function createUser({ email, password, role, firstName, lastName, phone })
   return result.rows[0];
 }
 
-adminUsersRouter.get('/users', adminUsersQueryValidation, async (req, res) => {
+adminUsersRouter.get('/users', async (req, res) => {
   const role = req.query.role?.toString();
   const status = req.query.status?.toString();
   const classFilter = req.query.class?.toString();
@@ -178,7 +171,7 @@ adminUsersRouter.get('/parents', async (_req, res) => {
   return res.json({ parents: result.rows });
 });
 
-adminUsersRouter.post('/users', adminUserCreateValidation, async (req, res) => {
+adminUsersRouter.post('/users', async (req, res) => {
   const {
     email,
     password,
@@ -277,7 +270,7 @@ adminUsersRouter.post('/users', adminUserCreateValidation, async (req, res) => {
   });
 });
 
-adminUsersRouter.patch('/users/:id/status', adminUserStatusValidation, async (req, res) => {
+adminUsersRouter.patch('/users/:id/status', async (req, res) => {
   const status = req.body.status?.toString();
   if (!STATUSES.has(status)) {
     return res.status(400).json({ error: 'Status must be active or disabled' });
@@ -308,7 +301,7 @@ adminUsersRouter.patch('/users/:id/status', adminUserStatusValidation, async (re
   return res.json({ user: userDto(result.rows[0]) });
 });
 
-adminUsersRouter.post('/users/:id/reset-password', adminPasswordResetValidation, async (req, res) => {
+adminUsersRouter.post('/users/:id/reset-password', async (req, res) => {
   const password = req.body.password?.toString();
   if (!password || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -338,7 +331,7 @@ adminUsersRouter.post('/users/:id/reset-password', adminPasswordResetValidation,
   return res.json({ user: userDto(result.rows[0]) });
 });
 
-adminUsersRouter.get('/audit-logs', auditLogsQueryValidation, async (req, res) => {
+adminUsersRouter.get('/audit-logs', async (req, res) => {
   const category = req.query.category?.toString();
   const params = [];
   const where = [];

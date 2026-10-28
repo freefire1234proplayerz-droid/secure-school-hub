@@ -4,12 +4,11 @@ import 'package:dio/dio.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/auth_service.dart';
-import '../theme/app_text_styles.dart';
-import '../widgets/design_system/app_button.dart';
-import '../widgets/design_system/glass_card.dart';
-import '../widgets/login/floating_text_field.dart';
-import '../widgets/login/role_selector.dart';
+import '../widgets/design_system/design_system.dart';
 import '../widgets/language_toggle.dart';
+import '../widgets/login/floating_text_field.dart';
+import '../widgets/login/particle_background.dart';
+import '../widgets/login/role_selector.dart';
 import 'admin/admin_dashboard.dart';
 import 'teacher_dashboard.dart';
 import 'parent_dashboard.dart';
@@ -36,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen>
     super.initState();
     _otpRevealController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: AppAnimations.slow,
     );
   }
 
@@ -142,94 +141,115 @@ class _LoginScreenState extends State<LoginScreen>
     final roles = _roleOptions(loc);
 
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 600;
+      body: ParticleBackground(
+        child: Focus(
+          autofocus: true,
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= AppBreakpoints.tablet;
 
-            if (isWide) {
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 960),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: constraints.maxWidth * 0.08,
-                      vertical: 48,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          flex: 5,
-                          child: _BrandingPanel(title: loc.appTitle, subtitle: 'Secure access for administrators, teachers, and parents.'),
+                if (isWide) {
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1080),
+                      child: Padding(
+                        padding:
+                            AppBreakpoints.pagePadding(constraints.maxWidth),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: AppFadeIn(
+                                delay: AppAnimations.instant,
+                                child: _BrandingPanel(
+                                  title: loc.appTitle,
+                                  subtitle:
+                                      'Secure access for admins, teachers, and parents.',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xxl),
+                            Expanded(
+                              child: AppFadeIn(
+                                delay: AppAnimations.fast,
+                                offset: const Offset(24, 0),
+                                child: _LoginFormCard(
+                                  loc: loc,
+                                  auth: auth,
+                                  roles: roles,
+                                  role: _role,
+                                  otpSent: _otpSent,
+                                  formKey: _formKey,
+                                  emailController: _emailController,
+                                  passwordController: _passwordController,
+                                  otpController: _otpController,
+                                  otpRevealController: _otpRevealController,
+                                  onRoleChanged: _onRoleChanged,
+                                  onSubmit: () async {
+                                    if (_otpSent) {
+                                      await _handleVerifyOtp();
+                                    } else {
+                                      await _handleLogin();
+                                    }
+                                  },
+                                  compactRoles: false,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 48),
-                        Expanded(
-                          flex: 4,
-                          child: _LoginFormCard(
-                            loc: loc,
-                            auth: auth,
-                            roles: roles,
-                            role: _role,
-                            otpSent: _otpSent,
-                            formKey: _formKey,
-                            emailController: _emailController,
-                            passwordController: _passwordController,
-                            otpController: _otpController,
-                            otpRevealController: _otpRevealController,
-                            onRoleChanged: _onRoleChanged,
-                            onSubmit: () async {
-                              if (_otpSent) {
-                                await _handleVerifyOtp();
-                              } else {
-                                await _handleLogin();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            return Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 32),
-                      _BrandingPanel(title: loc.appTitle, subtitle: 'Sign in to your school portal', compact: true),
-                      const SizedBox(height: 32),
-                      _LoginFormCard(
-                        loc: loc,
-                        auth: auth,
-                        roles: roles,
-                        role: _role,
-                        otpSent: _otpSent,
-                        formKey: _formKey,
-                        emailController: _emailController,
-                        passwordController: _passwordController,
-                        otpController: _otpController,
-                        otpRevealController: _otpRevealController,
-                        onRoleChanged: _onRoleChanged,
-                        onSubmit: () async {
-                          if (_otpSent) {
-                            await _handleVerifyOtp();
-                          } else {
-                            await _handleLogin();
-                          }
-                        },
                       ),
-                    ],
+                    ),
+                  );
+                }
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: AppBreakpoints.pagePadding(constraints.maxWidth),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppSpacing.maxFormWidth,
+                      ),
+                      child: AppFadeIn(
+                        child: Column(
+                          children: [
+                            _BrandingPanel(
+                              title: loc.appTitle,
+                              subtitle: 'Sign in to your school portal',
+                              compact: true,
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            _LoginFormCard(
+                              loc: loc,
+                              auth: auth,
+                              roles: roles,
+                              role: _role,
+                              otpSent: _otpSent,
+                              formKey: _formKey,
+                              emailController: _emailController,
+                              passwordController: _passwordController,
+                              otpController: _otpController,
+                              otpRevealController: _otpRevealController,
+                              onRoleChanged: _onRoleChanged,
+                              onSubmit: () async {
+                                if (_otpSent) {
+                                  await _handleVerifyOtp();
+                                } else {
+                                  await _handleLogin();
+                                }
+                              },
+                              compactRoles: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -253,36 +273,34 @@ class _BrandingPanel extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Column(
-      crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
-        Container(
-          width: compact ? 64 : 80,
-          height: compact ? 64 : 80,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: scheme.primary,
-            boxShadow: [
-              BoxShadow(
-                color: scheme.primary.withValues(alpha: 0.3),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.shield_outlined,
-            size: compact ? 32 : 40,
-            color: scheme.onPrimary,
+        AppPulse(
+          minScale: 0.98,
+          child: Container(
+            width: compact ? 72 : 88,
+            height: compact ? 72 : 88,
+            decoration: BoxDecoration(
+              borderRadius: AppSpacing.borderRadiusLg,
+              gradient: AppGradients.heroAccent(scheme),
+              boxShadow: AppShadows.primaryGlow(scheme.primary),
+            ),
+            child: Icon(
+              Icons.shield_moon_rounded,
+              size: compact ? 36 : 44,
+              color: scheme.onPrimary,
+            ),
           ),
         ),
-        SizedBox(height: compact ? 16 : 24),
+        SizedBox(height: compact ? AppSpacing.md : AppSpacing.lg),
         Text(
           title,
           textAlign: compact ? TextAlign.center : TextAlign.start,
           style: (compact ? textTheme.headlineMedium : textTheme.displaySmall)
-              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           subtitle,
           textAlign: compact ? TextAlign.center : TextAlign.start,
@@ -291,7 +309,84 @@ class _BrandingPanel extends StatelessWidget {
             height: 1.5,
           ),
         ),
+        if (!compact) ...[
+          const SizedBox(height: AppSpacing.xl),
+          const Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              _FeatureBadge(
+                icon: Icons.verified_user_outlined,
+                label: '2FA secured',
+              ),
+              _FeatureBadge(
+                icon: Icons.lock_outline,
+                label: 'Encrypted sessions',
+              ),
+              _FeatureBadge(
+                icon: Icons.devices_outlined,
+                label: 'Multi-device',
+              ),
+            ],
+          ),
+        ],
       ],
+    );
+  }
+}
+
+class _FeatureBadge extends StatefulWidget {
+  const _FeatureBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  State<_FeatureBadge> createState() => _FeatureBadgeState();
+}
+
+class _FeatureBadgeState extends State<_FeatureBadge> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: AppAnimations.fast,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: AppSpacing.borderRadiusSm,
+          color: scheme.surfaceContainerHighest.withValues(
+            alpha: _hovered ? 0.75 : 0.5,
+          ),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+        ),
+        transform: Matrix4.diagonal3Values(
+          _hovered ? 1.04 : 1.0,
+          _hovered ? 1.04 : 1.0,
+          1.0,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.icon, size: 16, color: scheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              widget.label,
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -310,6 +405,7 @@ class _LoginFormCard extends StatelessWidget {
     required this.otpRevealController,
     required this.onRoleChanged,
     required this.onSubmit,
+    required this.compactRoles,
   });
 
   final AppLocalizations loc;
@@ -324,6 +420,7 @@ class _LoginFormCard extends StatelessWidget {
   final AnimationController otpRevealController;
   final ValueChanged<String> onRoleChanged;
   final Future<void> Function() onSubmit;
+  final bool compactRoles;
 
   @override
   Widget build(BuildContext context) {
@@ -332,8 +429,9 @@ class _LoginFormCard extends StatelessWidget {
 
     return GlassCard(
       variant: GlassCardVariant.elevated,
-      borderRadius: BorderRadius.circular(16),
-      padding: const EdgeInsets.all(24),
+      borderRadius: AppSpacing.borderRadiusXl,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      blur: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -351,7 +449,7 @@ class _LoginFormCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       otpSent
-                          ? 'Enter the 6-digit code sent to your device'
+                          ? 'Enter the code sent to your email'
                           : 'Choose your role and sign in',
                       style: textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
@@ -363,54 +461,77 @@ class _LoginFormCard extends StatelessWidget {
               const LanguageToggle(),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.lg),
           Text(
             'Sign in as',
             style: AppTextStyles.overline(scheme),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.xs),
           RoleSelector(
             options: roles,
             selectedId: role,
             onChanged: onRoleChanged,
+            compact: compactRoles,
           ),
-          const SizedBox(height: 24),
-          _StepIndicator(
-            steps: ['Credentials', loc.otp],
-            activeIndex: otpSent ? 1 : 0,
+          const SizedBox(height: AppSpacing.lg),
+          AnimatedSwitcher(
+            duration: AppAnimations.normal,
+            switchInCurve: AppAnimations.enter,
+            switchOutCurve: AppAnimations.exit,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.04),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+            child: otpSent
+                ? _OtpStepIndicator(key: const ValueKey('otp-step'), loc: loc)
+                : const _CredentialsStepIndicator(
+                    key: ValueKey('cred-step'),
+                  ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.md),
           Form(
             key: formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FloatingTextField(
-                  controller: emailController,
-                  label: loc.email,
-                  prefixIcon: Icons.alternate_email_rounded,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.email],
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Required' : null,
+                AppFadeIn(
+                  delay: AppAnimations.staggerDelay(1),
+                  child: FloatingTextField(
+                    controller: emailController,
+                    label: loc.email,
+                    prefixIcon: Icons.alternate_email_rounded,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.email],
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Required' : null,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                FloatingTextField(
-                  controller: passwordController,
-                  label: loc.password,
-                  prefixIcon: Icons.lock_outline_rounded,
-                  obscureText: true,
-                  textInputAction:
-                      otpSent ? TextInputAction.next : TextInputAction.done,
-                  autofillHints: const [AutofillHints.password],
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Required' : null,
+                const SizedBox(height: AppSpacing.sm),
+                AppFadeIn(
+                  delay: AppAnimations.staggerDelay(2),
+                  child: FloatingTextField(
+                    controller: passwordController,
+                    label: loc.password,
+                    prefixIcon: Icons.lock_outline_rounded,
+                    obscureText: true,
+                    textInputAction:
+                        otpSent ? TextInputAction.next : TextInputAction.done,
+                    autofillHints: const [AutofillHints.password],
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Required' : null,
+                  ),
                 ),
                 SizeTransition(
                   sizeFactor: CurvedAnimation(
                     parent: otpRevealController,
-                    curve: Curves.easeOutCubic,
+                    curve: AppAnimations.emphasized,
                   ),
                   axisAlignment: -1,
                   child: FadeTransition(
@@ -418,40 +539,42 @@ class _LoginFormCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpacing.md),
                         if (auth.lastOtpDemo != null)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              color: scheme.primaryContainer
-                                  .withValues(alpha: 0.5),
-                              border: Border.all(
-                                color: scheme.primary.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline_rounded,
-                                  size: 18,
-                                  color: scheme.primary,
+                          AppFadeIn(
+                            child: Container(
+                              padding: const EdgeInsets.all(AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                borderRadius: AppSpacing.borderRadiusSm,
+                                color: scheme.primaryContainer
+                                    .withValues(alpha: 0.55),
+                                border: Border.all(
+                                  color: scheme.primary.withValues(alpha: 0.35),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Demo OTP: ${auth.lastOtpDemo} (valid ~2 min)',
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: scheme.onPrimaryContainer,
-                                      fontWeight: FontWeight.w600,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 18,
+                                    color: scheme.primary,
+                                  ),
+                                  const SizedBox(width: AppSpacing.xs),
+                                  Expanded(
+                                    child: Text(
+                                      'Demo OTP: ${auth.lastOtpDemo} (valid ~2 min)',
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: scheme.onPrimaryContainer,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         if (auth.lastOtpDemo != null)
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppSpacing.sm),
                         FloatingTextField(
                           controller: otpController,
                           label: loc.otp,
@@ -466,20 +589,49 @@ class _LoginFormCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                AppButton(
-                  label: otpSent ? loc.verifyOtp : loc.sendOtp,
-                  icon:
-                      otpSent ? Icons.verified_outlined : Icons.send_rounded,
-                  expand: true,
-                  isLoading: auth.isLoading,
-                  onPressed: auth.isLoading ? null : onSubmit,
+                const SizedBox(height: AppSpacing.lg),
+                AppFadeIn(
+                  delay: AppAnimations.staggerDelay(3),
+                  child: AppButton(
+                    label: otpSent ? loc.verifyOtp : loc.sendOtp,
+                    icon:
+                        otpSent ? Icons.verified_outlined : Icons.send_rounded,
+                    expand: true,
+                    isLoading: auth.isLoading,
+                    onPressed: auth.isLoading ? null : onSubmit,
+                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CredentialsStepIndicator extends StatelessWidget {
+  const _CredentialsStepIndicator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _StepIndicator(
+      steps: ['Credentials', 'Verification'],
+      activeIndex: 0,
+    );
+  }
+}
+
+class _OtpStepIndicator extends StatelessWidget {
+  const _OtpStepIndicator({super.key, required this.loc});
+
+  final AppLocalizations loc;
+
+  @override
+  Widget build(BuildContext context) {
+    return _StepIndicator(
+      steps: ['Credentials', loc.otp],
+      activeIndex: 1,
     );
   }
 }
@@ -502,17 +654,18 @@ class _StepIndicator extends StatelessWidget {
         for (var i = 0; i < steps.length; i++) ...[
           Expanded(
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: 3,
+              duration: AppAnimations.normal,
+              height: 4,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(99),
-                color: i <= activeIndex
-                    ? scheme.primary
-                    : scheme.surfaceContainerHighest,
+                gradient: i <= activeIndex
+                    ? AppGradients.heroAccentSoft(scheme)
+                    : null,
+                color: i <= activeIndex ? null : scheme.surfaceContainerHighest,
               ),
             ),
           ),
-          if (i < steps.length - 1) const SizedBox(width: 8),
+          if (i < steps.length - 1) const SizedBox(width: AppSpacing.xs),
         ],
       ],
     );

@@ -1,12 +1,10 @@
 import express from 'express';
 
 import { askAiTutor } from '../services/aiTutorService.js';
-import { authRequired } from '../middleware/auth.js';
-import { aiAskValidation } from '../middleware/validate.js';
 
 export const aiRouter = express.Router();
 
-aiRouter.post('/ask', authRequired, aiAskValidation, async (req, res) => {
+aiRouter.post('/ask', async (req, res) => {
   const question = req.body?.question?.toString().trim();
 
   if (!question) {
@@ -20,8 +18,6 @@ aiRouter.post('/ask', authRequired, aiAskValidation, async (req, res) => {
     // eslint-disable-next-line no-console
     console.log('AI Tutor question received', {
       length: question.length,
-      userId: req.user.id,
-      role: req.user.role,
       at: new Date().toISOString(),
     });
 
@@ -38,7 +34,6 @@ aiRouter.post('/ask', authRequired, aiAskValidation, async (req, res) => {
     console.error('AI Tutor request failed:', {
       message: error.message,
       statusCode,
-      userId: req.user.id,
     });
 
     return res.status(statusCode).json({

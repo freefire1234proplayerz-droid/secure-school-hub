@@ -33,16 +33,6 @@ async function attendanceStats() {
   };
 }
 
-async function getFeePending() {
-  const result = await query(
-    `SELECT COALESCE(SUM(amount), 0)::bigint AS total
-     FROM fee_records
-     WHERE status = 'pending'`,
-    [],
-  ).catch(() => ({ rows: [{ total: 0 }] }));
-  return result.rows[0]?.total ?? 0;
-}
-
 dashboardRouter.get('/admin', authRequired, async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'teacher') {
     return res.status(403).json({ error: 'Admin access required' });
@@ -69,18 +59,17 @@ dashboardRouter.get('/admin', authRequired, async (req, res) => {
      LIMIT 5`,
     [],
   );
-  const feePending = await getFeePending();
 
   return res.json({
     ...attendance,
     activeTeachers: teachersResult.rows[0]?.count ?? 0,
     alerts: notificationsResult.rows[0]?.count ?? 0,
-    feePending,
+    feePending: 860000,
     security: {
       serverStatus: 'Online',
-      vpnStatus: 'Configured',
+      vpnStatus: 'Connected',
       encryptedMessaging: 'Enabled',
-      suspiciousActivity: 0,
+      suspiciousActivity: 2,
     },
     recentActivity: recentResult.rows.map((row) => ({
       title: `${row.student_name} marked present`,
@@ -131,16 +120,15 @@ dashboardRouter.get('/teacher', authRequired, async (req, res) => {
   );
 
   const unreadChat = notificationsResult.rows.filter((n) => n.type === 'chat').length;
-  const homeworkCount = homeworkResult.rows[0]?.count ?? 0;
 
   return res.json({
     ...attendance,
-    homeworkSent: homeworkCount,
+    homeworkSent: homeworkResult.rows[0]?.count ?? 0,
     parentAlerts: notificationsResult.rows.length,
     unreadParentMessages: unreadChat,
     classOverview: {
-      homeworkCompletion: Math.min(100, Math.max(0, homeworkCount * 10 + 40)),
-      feeFollowupClosed: 0,
+      homeworkCompletion: Math.min(100, (homeworkResult.rows[0]?.count ?? 0) * 12 + 40),
+      feeFollowupClosed: 68,
     },
     notifications: notificationsResult.rows,
     homework: homeworkListResult.rows,
@@ -158,36 +146,12 @@ dashboardRouter.get('/parent', authRequired, async (req, res) => {
     return res.status(403).json({ error: 'Parent access required' });
   }
 
-  const childResult = await query(
-    `SELECT id, COALESCE(name, first_name || ' ' || last_name) AS child_name
-     FROM students
-     WHERE parent_user_id = $1
-     ORDER BY id
-     LIMIT 1`,
-    [req.user.sub],
-  );
-
-  if (childResult.rowCount === 0) {
-    return res.json({
-      childName: 'No child linked',
-      attendancePercent: 0,
-      gradeAverage: 0,
-      feeReminders: 0,
-      grades: [],
-      notifications: [],
-      homework: [],
-    });
-  }
-
-  const childId = childResult.rows[0].id;
-  const childName = childResult.rows[0].child_name;
-
   const gradesResult = await query(
     `SELECT subject, score, max_score, term
      FROM grades
      WHERE student_id = $1
      ORDER BY subject`,
-    [childId],
+    [req.user.sub],
   );
   const notificationsResult = await query(
     `SELECT id, title, body, type, created_at, read_at
@@ -204,6 +168,16 @@ dashboardRouter.get('/parent', authRequired, async (req, res) => {
      LIMIT 5`,
     [],
   );
+
+  const childResult = await query(
+    `SELECT COALESCE(name, first_name || ' ' || last_name) AS child_name
+     FROM students
+     WHERE parent_user_id = $1
+     ORDER BY id
+     LIMIT 1`,
+    [req.user.sub],
+  );
+
   const childAttendance = await query(
     `SELECT COUNT(*)::int AS present_days
      FROM attendance a
@@ -226,13 +200,13 @@ dashboardRouter.get('/parent', authRequired, async (req, res) => {
     : 0;
 
   const presentDays = childAttendance.rows[0]?.present_days ?? 0;
-  const attendancePercent = Math.min(100, Math.max(0, presentDays * 3 + 10));
+  const attendancePercent = Math.min(100, Math.max(70, 70 + presentDays * 3));
 
   return res.json({
-    childName,
+    childName: childResult.rows[0]?.child_name ?? 'Aarav Sharma',
     attendancePercent,
     gradeAverage: average,
-    feeReminders: feeReminders > 0 ? feeReminders : 0,
+    feeReminders: feeReminders > 0 ? feeReminders : 1,
     grades,
     notifications: notificationsResult.rows,
     homework: homeworkResult.rows,

@@ -3,11 +3,10 @@ import { authRequired } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { encryptMessage, decryptMessage } from '../utils/crypto.js';
 import { notifyAllParents, notifyAllTeachers } from '../utils/notify.js';
-import { chatSendValidation } from '../middleware/validate.js';
 
 export const chatRouter = express.Router();
 
-chatRouter.post('/send', authRequired, chatSendValidation, async (req, res) => {
+chatRouter.post('/send', authRequired, async (req, res) => {
   const { message } = req.body;
   if (!message) {
     return res.status(400).json({ error: 'Missing message' });

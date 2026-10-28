@@ -6,15 +6,20 @@ import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import '../theme/app_text_styles.dart';
+import '../services/frontend_experience_service.dart';
 import '../utils/json_num.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/dashboard/dashboard_components.dart' hide DashboardSection;
+import '../widgets/dashboard/dashboard_grid.dart';
+import '../widgets/dashboard/dashboard_section.dart';
+import '../widgets/dashboard/kpi_stat_card.dart';
+import '../widgets/dashboard/quick_action_card.dart';
 import '../widgets/design_system/app_button.dart';
-import '../widgets/design_system/glass_card.dart';
 import '../widgets/attendance/attendance_models.dart';
 import '../widgets/attendance/parent_attendance_module.dart';
 import '../widgets/communication/parent_communication_module.dart';
+import '../widgets/experience/production_experience.dart';
 import '../widgets/shell/app_shell.dart';
-import '../widgets/dashboard/dashboard_components.dart';
 import 'login_screen.dart';
 import 'student/ai_tutor_screen.dart';
 
@@ -44,12 +49,34 @@ class _ParentDashboardState extends State<ParentDashboard> {
       id: GlobalKey(),
   };
 
-  List<DashboardNotification> _notifications = [];
+  List<DashboardNotification> _notifications = const [
+    DashboardNotification(
+      title: 'Child entered school',
+      detail: 'Aarav was marked present from QR attendance.',
+      icon: Icons.verified_user_outlined,
+      color: Colors.teal,
+      time: 'Demo',
+    ),
+    DashboardNotification(
+      title: 'Homework assigned',
+      detail: 'Math practice is due tomorrow evening.',
+      icon: Icons.assignment_outlined,
+      color: Colors.indigo,
+      time: 'Demo',
+    ),
+    DashboardNotification(
+      title: 'Fee reminder',
+      detail: 'Transport fee payment is pending.',
+      icon: Icons.receipt_long_outlined,
+      color: Colors.deepOrange,
+      time: 'Demo',
+    ),
+  ];
   Map<String, dynamic> _dashboard = {
     'childName': 'Aarav Sharma',
-    'attendancePercent': 0,
-    'gradeAverage': 0,
-    'feeReminders': 0,
+    'attendancePercent': 94,
+    'gradeAverage': 86,
+    'feeReminders': 1,
     'grades': [],
     'homework': [],
   };
@@ -127,11 +154,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
       await _refreshDashboard();
     } catch (e) {
       if (!mounted) return;
+      await FrontendExperienceService.instance.queueAction(
+        PendingActionType.upload,
+        title: 'Offline fee proof: ${file.name}',
+        payload: {'fileName': file.name, 'size': file.size},
+      );
       _showSnack('Upload failed: ${_formatError(e)}', isError: true);
     }
   }
 
   void _openAiTutor() {
+    // ignore: avoid_print
+    print('AI Tutor opened from Parent Dashboard');
     Navigator.pushNamed(context, AiTutorScreen.routeName);
   }
 
@@ -187,7 +221,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
         }).toList();
       });
     } catch (_) {
-      // Keep empty if API not reachable
+      // Keep the premium fallback notifications if the API is not reachable.
     }
   }
 
@@ -209,18 +243,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   List<ShellNotification> _shellNotifications() {
-    if (_notifications.isEmpty) {
-      return const [
-        ShellNotification(
-          id: 'inbox',
-          title: 'No new notifications',
-          body: 'School updates will appear here.',
-          icon: Icons.inbox_outlined,
-          color: Colors.blueGrey,
-          time: 'Now',
-        ),
-      ];
-    }
     return [
       for (var i = 0; i < _notifications.length; i++)
         ShellNotification(
@@ -240,67 +262,195 @@ class _ParentDashboardState extends State<ParentDashboard> {
     final colorScheme = Theme.of(context).colorScheme;
     final grades =
         List<Map<String, dynamic>>.from(_dashboard['grades'] as List? ?? []);
-    final attendancePercent = asInt(_dashboard['attendancePercent'], 0);
-    final gradeAverage = asInt(_dashboard['gradeAverage'], 0);
+    final attendancePercent = asInt(_dashboard['attendancePercent'], 94);
+    final gradeAverage = asInt(_dashboard['gradeAverage'], 86);
     final childName = _dashboard['childName']?.toString() ?? 'Aarav Sharma';
 
-    return AppShell(
-      title: 'Parent Portal',
-      navItems: ShellNavConfig.parent,
-      selectedIndex: _selectedNav,
-      onNavSelected: (i) => setState(() => _selectedNav = i),
-      sectionKeys: _sectionKeys,
-      notifications: _shellNotifications(),
-      onLogout: _logout,
-      onRefresh: _refreshDashboard,
-      isLoading: _loading,
-      quickActions: [
-        ShellQuickAction(
-          label: 'Upload fee proof',
-          icon: Icons.upload_file_outlined,
-          onTap: _uploadFeeProof,
-        ),
-        ShellQuickAction(
-          label: 'Refresh grades',
-          icon: Icons.school_outlined,
-          onTap: _loadGrades,
-        ),
-        ShellQuickAction(
-          label: 'AI Study Buddy',
-          icon: Icons.smart_toy_outlined,
-          description: 'Ask doubts and get homework support',
-          onTap: _openAiTutor,
-        ),
-      ],
-      body: RefreshIndicator(
-        onRefresh: _refreshDashboard,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    return Stack(
+      children: [
+        AppShell(
+          title: 'Parent Portal',
+          navItems: ShellNavConfig.parent,
+          selectedIndex: _selectedNav,
+          onNavSelected: (i) => setState(() => _selectedNav = i),
+          sectionKeys: _sectionKeys,
+          notifications: _shellNotifications(),
+          onLogout: _logout,
+          onRefresh: _refreshDashboard,
+          isLoading: _loading,
+          quickActions: [
+            ShellQuickAction(
+              label: 'Upload fee proof',
+              icon: Icons.upload_file_outlined,
+              onTap: _uploadFeeProof,
+            ),
+            ShellQuickAction(
+              label: 'Refresh grades',
+              icon: Icons.school_outlined,
+              onTap: _loadGrades,
+            ),
+            ShellQuickAction(
+              label: 'AI Study Buddy',
+              icon: Icons.smart_toy_outlined,
+              description: 'Ask doubts and get homework support',
+              onTap: _openAiTutor,
+            ),
+          ],
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ShellSection(
+                sectionKey: _sectionKeys['overview']!,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeader(childName),
-                    const SizedBox(height: 24),
-                    _buildKpiCards(colorScheme, attendancePercent, gradeAverage),
-                    const SizedBox(height: 24),
-                    _buildFeePaymentSection(),
-                    const SizedBox(height: 24),
-                    _buildLearningSupport(),
-                    const SizedBox(height: 24),
-                    _buildQuickActions(),
+                    DashboardPageHeader(
+                      title: childName,
+                      subtitle:
+                          'Attendance, grades, reminders, and secure school communication.',
+                      trailing: AppButton(
+                        label: 'Refresh',
+                        icon: Icons.refresh,
+                        onPressed: _refreshDashboard,
+                        size: AppButtonSize.sm,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    DashboardGrid(
+                      children: [
+                        KPIStatCard(
+                          label: 'Child attendance',
+                          value: '$attendancePercent%',
+                          icon: Icons.how_to_reg_outlined,
+                          color: colorScheme.primary,
+                          trend: '+3%',
+                          detail: 'Present today at 8:04 AM',
+                          isLoading: _loading,
+                        ),
+                        KPIStatCard(
+                          label: 'Grade average',
+                          value: '$gradeAverage%',
+                          icon: Icons.school_outlined,
+                          color: Colors.teal,
+                          trend: '+5%',
+                          detail: 'Term 2 performance',
+                          isLoading: _loading,
+                        ),
+                        KPIStatCard(
+                          label: 'Fee reminders',
+                          value: '${_dashboard['feeReminders'] ?? 1}',
+                          icon: Icons.currency_rupee,
+                          color: Colors.deepOrange,
+                          detail: 'Transport fee due Friday',
+                          isLoading: _loading,
+                        ),
+                        KPIStatCard(
+                          label: 'Notifications',
+                          value: '${_notifications.length}',
+                          icon: Icons.notifications_none,
+                          color: Colors.indigo,
+                          detail: 'Latest school updates',
+                          isLoading: _loading,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    DashboardSection(
+                      title: 'Fee payment',
+                      useGlassPanel: false,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Upload payment receipt so the teacher can verify it.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AppButton(
+                            label: 'Upload fee proof',
+                            icon: Icons.upload_file_outlined,
+                            onPressed: _uploadFeeProof,
+                            size: AppButtonSize.sm,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    DashboardSection(
+                      title: 'Learning support',
+                      useGlassPanel: false,
+                      child: DashboardGrid(
+                        minItemWidth: 280,
+                        children: [
+                          QuickActionCard(
+                            label: '🤖 AI Study Buddy',
+                            description:
+                                'Ask doubts, learn concepts, solve homework, and get chapter explanations.',
+                            icon: Icons.smart_toy_outlined,
+                            color: Colors.indigo,
+                            onTap: _openAiTutor,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    DashboardSection(
+                      title: 'AI progress summary',
+                      useGlassPanel: false,
+                      animate: false,
+                      child: IntelligentInsightsPanel(
+                        audience: 'parent',
+                        primaryScore: attendancePercent,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    const DashboardSection(
+                      title: 'Family dashboard layout',
+                      useGlassPanel: false,
+                      animate: false,
+                      child: PersonalizableDashboardStrip(
+                        items: [
+                          DashboardWidgetItem(
+                            id: 'weekly-summary',
+                            title: 'Weekly learning summary',
+                            subtitle:
+                                'Attendance, grades, homework, and suggestions.',
+                            icon: Icons.auto_stories_outlined,
+                            color: Colors.indigo,
+                          ),
+                          DashboardWidgetItem(
+                            id: 'attendance-score',
+                            title: 'Consistency score',
+                            subtitle:
+                                'Arrival regularity and absence prediction.',
+                            icon: Icons.verified_user_outlined,
+                            color: Colors.teal,
+                          ),
+                          DashboardWidgetItem(
+                            id: 'improvements',
+                            title: 'Improvement suggestions',
+                            subtitle:
+                                'Small daily actions recommended locally.',
+                            icon: Icons.tips_and_updates_outlined,
+                            color: Colors.deepOrange,
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['attendance']!,
+              ShellSection(
+                sectionKey: _sectionKeys['attendance']!,
+                child: DashboardSection(
                   title: 'Attendance progress',
+                  useGlassPanel: false,
+                  animate: false,
                   child: ParentAttendanceModule(
                     childName: childName,
                     attendancePercent: attendancePercent,
@@ -320,12 +470,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['grades']!,
+              ShellSection(
+                sectionKey: _sectionKeys['grades']!,
+                child: DashboardSection(
                   title: loc.grades,
                   action: AppButton(
                     label: 'Update',
@@ -334,571 +481,137 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     size: AppButtonSize.sm,
                     onPressed: _loadGrades,
                   ),
-                  child: _buildGrades(grades, colorScheme),
+                  useGlassPanel: false,
+                  child: Column(
+                    children: [
+                      if (grades.isEmpty)
+                        ProgressRow(
+                          label: 'Mathematics',
+                          value: '91%',
+                          percent: 0.91,
+                          color: colorScheme.primary,
+                        )
+                      else
+                        for (var i = 0; i < grades.length; i++)
+                          ProgressRow(
+                            label:
+                                grades[i]['subject']?.toString() ?? 'Subject',
+                            value:
+                                '${(_gradePercent(grades[i]) * 100).round()}%',
+                            percent: _gradePercent(grades[i]),
+                            color: [
+                              colorScheme.primary,
+                              Colors.teal,
+                              Colors.indigo,
+                              Colors.deepOrange,
+                            ][i % 4],
+                          ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: _buildSection(
-                  key: _sectionKeys['ai_tutor']!,
+              ShellSection(
+                sectionKey: _sectionKeys['ai_tutor']!,
+                child: DashboardSection(
                   title: 'AI Study Buddy',
-                  child: _buildAiTutorSection(),
+                  useGlassPanel: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Help your child learn with AI-powered explanations and homework support.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      AppButton(
+                        label: 'Open AI Tutor',
+                        icon: Icons.smart_toy_outlined,
+                        onPressed: _openAiTutor,
+                        size: AppButtonSize.sm,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          for (final prompt in const [
+                            'Explain Photosynthesis',
+                            'Teach Algebra',
+                            'Solve 2x + 5 = 15',
+                            'Explain Newton\'s Laws',
+                          ])
+                            ActionChip(
+                              avatar:
+                                  const Icon(Icons.lightbulb_outline, size: 18),
+                              label: Text(prompt),
+                              onPressed: _openAiTutor,
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['homework']!,
+              ShellSection(
+                sectionKey: GlobalKey(),
+                child: const DashboardSection(
+                  title: 'Progress trends',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: PremiumAnalyticsPanel(
+                    title: 'Attendance and grade trajectory',
+                    values: [78, 81, 86, 84, 89, 91, 94],
+                  ),
+                ),
+              ),
+              ShellSection(
+                sectionKey: GlobalKey(),
+                child: const DashboardSection(
+                  title: 'Media gallery',
+                  useGlassPanel: false,
+                  animate: false,
+                  child: MediaExperiencePanel(),
+                ),
+              ),
+              ShellSection(
+                sectionKey: _sectionKeys['homework']!,
+                child: DashboardSection(
                   title: loc.homework,
+                  useGlassPanel: false,
+                  animate: false,
                   child: const ParentCommunicationModule(initialTab: 1),
                 ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildSection(
-                  key: _sectionKeys['messages']!,
+              ShellSection(
+                sectionKey: _sectionKeys['messages']!,
+                child: DashboardSection(
                   title: 'Notices & ${loc.chat}',
+                  useGlassPanel: false,
+                  animate: false,
                   child: const ParentCommunicationModule(initialTab: 2),
                 ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(String childName) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                childName,
-                style: AppTextStyles.pageTitle(Theme.of(context).textTheme),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Attendance, grades, reminders, and secure school communication.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
+              const SizedBox(height: AppSpacing.xxl),
             ],
           ),
         ),
-        AppButton(
-          label: 'Refresh',
-          icon: Icons.refresh,
-          onPressed: _refreshDashboard,
-          size: AppButtonSize.sm,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKpiCards(ColorScheme colorScheme, int attendancePercent, int gradeAverage) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _KpiCard(
-          label: 'Child attendance',
-          value: '$attendancePercent%',
-          icon: Icons.how_to_reg_outlined,
-          color: colorScheme.primary,
-          detail: attendancePercent > 0 ? 'Present today' : 'No data',
-          isLoading: _loading,
-        ),
-        _KpiCard(
-          label: 'Grade average',
-          value: '$gradeAverage%',
-          icon: Icons.school_outlined,
-          color: Colors.teal,
-          detail: gradeAverage > 0 ? 'Term performance' : 'No grades yet',
-          isLoading: _loading,
-        ),
-        _KpiCard(
-          label: 'Fee reminders',
-          value: '${_dashboard['feeReminders'] ?? 0}',
-          icon: Icons.currency_rupee,
-          color: Colors.deepOrange,
-          detail: 'Pending payments',
-          isLoading: _loading,
-        ),
-        _KpiCard(
-          label: 'Notifications',
-          value: '${_notifications.length}',
-          icon: Icons.notifications_none,
-          color: Colors.indigo,
-          detail: 'Latest school updates',
-          isLoading: _loading,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFeePaymentSection() {
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Fee payment',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Upload payment receipt so the teacher can verify it.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: 'Upload fee proof',
-            icon: Icons.upload_file_outlined,
-            onPressed: _uploadFeeProof,
-            size: AppButtonSize.sm,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLearningSupport() {
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Learning support',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-          const SizedBox(height: 12),
-          _ActionCard(
-            label: 'AI Study Buddy',
-            description: 'Ask doubts, learn concepts, solve homework, and get chapter explanations.',
-            icon: Icons.smart_toy_outlined,
-            color: Colors.indigo,
-            onTap: _openAiTutor,
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final prompt in const [
-                'Explain Photosynthesis',
-                'Teach Algebra',
-                'Solve 2x + 5 = 15',
-                'Explain Newton\'s Laws',
-              ])
-                ActionChip(
-                  avatar: const Icon(Icons.lightbulb_outline, size: 18),
-                  label: Text(prompt),
-                  onPressed: _openAiTutor,
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Quick actions',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _ActionCard(
-              label: 'Refresh grades',
-              description: 'Fetch latest grades from school',
-              icon: Icons.school_outlined,
-              onTap: _loadGrades,
-            ),
-            _ActionCard(
-              label: 'Upload fee proof',
-              description: 'Send payment receipt to teacher',
-              icon: Icons.upload_file_outlined,
-              onTap: _uploadFeeProof,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSection({
-    required GlobalKey key,
-    required String title,
-    Widget? action,
-    required Widget child,
-  }) {
-    return Padding(
-      key: key,
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ),
-              if (action != null) action,
-            ],
-          ),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGrades(List<Map<String, dynamic>> grades, ColorScheme colorScheme) {
-    if (grades.isEmpty) {
-      return _EmptyState(
-        icon: Icons.school_outlined,
-        title: 'No grades available',
-        message: 'Grades will appear here once published by the school.',
-      );
-    }
-
-    return Column(
-      children: [
-        for (var i = 0; i < grades.length; i++)
-          _ProgressRow(
-            label: grades[i]['subject']?.toString() ?? 'Subject',
-            value: '${(_gradePercent(grades[i]) * 100).round()}%',
-            percent: _gradePercent(grades[i]),
-            color: [
-              colorScheme.primary,
-              Colors.teal,
-              Colors.indigo,
-              Colors.deepOrange,
-            ][i % 4],
-          ),
-      ],
-    );
-  }
-
-  Widget _buildAiTutorSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Help your child learn with AI-powered explanations and homework support.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-        const SizedBox(height: 12),
-        AppButton(
-          label: 'Open AI Tutor',
-          icon: Icons.smart_toy_outlined,
-          onPressed: _openAiTutor,
-          size: AppButtonSize.sm,
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final prompt in const [
-              'Explain Photosynthesis',
-              'Teach Algebra',
-              'Solve 2x + 5 = 15',
-              'Explain Newton\'s Laws',
-            ])
-              ActionChip(
-                avatar: const Icon(Icons.lightbulb_outline, size: 18),
-                label: Text(prompt),
+        Positioned(
+          right: AppSpacing.lg,
+          bottom: AppSpacing.xxl,
+          child: SafeArea(
+            child: Tooltip(
+              message: 'AI Study Buddy',
+              child: FloatingActionButton(
+                heroTag: 'parent-ai-study-buddy',
                 onPressed: _openAiTutor,
+                child: const Icon(Icons.smart_toy),
               ),
-          ],
+            ),
+          ),
         ),
       ],
-    );
-  }
-}
-
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    this.detail,
-    this.trend,
-    this.isLoading = false,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final String? detail;
-  final String? trend;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
-      child: GlassCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const Spacer(),
-                if (trend != null && !isLoading)
-                  Text(
-                    trend!,
-                    style: textTheme.labelMedium?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                if (isLoading)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              value,
-              style: textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (detail != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                detail!,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressRow extends StatelessWidget {
-  const _ProgressRow({
-    required this.label,
-    required this.value,
-    required this.percent,
-    this.color,
-  });
-
-  final String label;
-  final String value;
-  final double percent;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final barColor = color ?? colorScheme.primary;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 8,
-              value: percent.clamp(0, 1),
-              backgroundColor: colorScheme.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation(barColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  const _ActionCard({
-    required this.label,
-    required this.description,
-    required this.icon,
-    this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final String description;
-  final IconData icon;
-  final Color? color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final actionColor = color ?? colorScheme.primary;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
-      child: GlassCard(
-        variant: GlassCardVariant.elevated,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: actionColor, size: 24),
-                const SizedBox(height: 10),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GlassCard(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
     );
   }
 }

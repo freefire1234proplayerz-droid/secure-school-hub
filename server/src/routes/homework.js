@@ -2,7 +2,6 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { notifyAllParents } from '../utils/notify.js';
-import { homeworkCreateValidation, homeworkAttachValidation } from '../middleware/validate.js';
 
 export const homeworkRouter = express.Router();
 
@@ -19,7 +18,7 @@ async function ensureHomeworkFilesTable() {
   `);
 }
 
-homeworkRouter.post('/create', authRequired, homeworkCreateValidation, async (req, res) => {
+homeworkRouter.post('/create', authRequired, async (req, res) => {
   const { title, description } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'Missing title' });
@@ -42,7 +41,7 @@ homeworkRouter.post('/create', authRequired, homeworkCreateValidation, async (re
   return res.json({ status: 'created', homework });
 });
 
-homeworkRouter.post('/attach', authRequired, homeworkAttachValidation, async (req, res) => {
+homeworkRouter.post('/attach', authRequired, async (req, res) => {
   const { fileName, size, title } = req.body;
   if (!fileName) {
     return res.status(400).json({ error: 'Missing fileName' });

@@ -3,7 +3,7 @@ import { authenticator } from 'otplib';
 
 import { query } from './db.js';
 
-const DEFAULT_PASSWORD = 'password123';
+const password = 'password123';
 
 const demoUsers = [
   { email: 'admin@school.com', role: 'admin', firstName: 'Secure', lastName: 'Admin' },
@@ -46,7 +46,7 @@ const demoStudents = [
   },
 ];
 
-async function createTables() {
+export async function ensureDatabaseReady() {
   await query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -159,26 +159,11 @@ async function createTables() {
   await query(`
     CREATE TABLE IF NOT EXISTS grades (
       id SERIAL PRIMARY KEY,
-      student_id INTEGER REFERENCES students(id),
+      student_id INTEGER REFERENCES users(id),
       subject TEXT NOT NULL,
       score NUMERIC NOT NULL,
       max_score NUMERIC NOT NULL,
       term TEXT NOT NULL
-    );
-  `);
-
-  await query(`
-    CREATE TABLE IF NOT EXISTS fee_records (
-      id SERIAL PRIMARY KEY,
-      student_id INTEGER REFERENCES students(id),
-      amount NUMERIC NOT NULL,
-      currency TEXT NOT NULL DEFAULT 'INR',
-      status TEXT NOT NULL DEFAULT 'pending',
-      razorpay_order_id TEXT,
-      razorpay_payment_id TEXT,
-      due_date DATE,
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -202,47 +187,24 @@ async function createTables() {
       read_at TIMESTAMP WITH TIME ZONE
     );
   `);
-}
-
-async function seedDemoData() {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const password = isProduction
-    ? process.env.DEMO_USER_PASSWORD
-    : DEFAULT_PASSWORD;
-
-  if (isProduction && !password) {
-    console.log('Production mode: skipping demo user creation (set DEMO_USER_PASSWORD to enable)');
-    return;
-  }
-
-  if (!password) {
-    console.log('No demo password configured, skipping demo data seeding');
-    return;
-  }
 
   const hash = await bcrypt.hash(password, 10);
 
   for (const user of demoUsers) {
-    const existing = await query('SELECT id, password_hash FROM users WHERE email = $1', [user.email]);
-    if (existing.rowCount > 0) {
-      console.log(`User ${user.email} exists, preserving existing password`);
-      await query(
-        `UPDATE users
-         SET first_name = COALESCE(first_name, $2),
-             last_name = COALESCE(last_name, $3),
-             role = $4,
-             status = 'active'
-         WHERE email = $1`,
-        [user.email, user.firstName, user.lastName, user.role],
-      );
-    } else {
-      await query(
-        `INSERT INTO users (email, password_hash, role, totp_secret, first_name, last_name)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [user.email, hash, user.role, authenticator.generateSecret(), user.firstName, user.lastName],
-      );
-      console.log(`Created demo user: ${user.email} (${user.role})`);
-    }
+    await query(
+      `INSERT INTO users (email, password_hash, role, totp_secret)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (email)
+       DO UPDATE SET password_hash = $2, role = $3, status = 'active'`,
+      [user.email, hash, user.role, authenticator.generateSecret()],
+    );
+    await query(
+      `UPDATE users
+       SET first_name = COALESCE(first_name, $2),
+           last_name = COALESCE(last_name, $3)
+       WHERE email = $1`,
+      [user.email, user.firstName, user.lastName],
+    );
   }
 
   const parentResult = await query(
@@ -316,35 +278,22 @@ async function seedDemoData() {
   }
 
   if (parentUserId) {
-    const studentResult = await query(
-      'SELECT id FROM students WHERE parent_user_id = $1 LIMIT 1',
-      [parentUserId],
-    );
-    const studentId = studentResult.rows[0]?.id ?? null;
+    const gradeRows = [
+      ['Mathematics', 91, 100, 'Term 2'],
+      ['Science', 84, 100, 'Term 2'],
+      ['English', 88, 100, 'Term 2'],
+      ['Social Studies', 81, 100, 'Term 2'],
+    ];
 
-    if (studentId) {
-      const gradeRows = [
-        ['Mathematics', 91, 100, 'Term 2'],
-        ['Science', 84, 100, 'Term 2'],
-        ['English', 88, 100, 'Term 2'],
-        ['Social Studies', 81, 100, 'Term 2'],
-      ];
-
-      for (const [subject, score, maxScore, term] of gradeRows) {
-        await query(
-          `INSERT INTO grades (student_id, subject, score, max_score, term)
-           SELECT $1, $2, $3, $4, $5
-           WHERE NOT EXISTS (
-             SELECT 1 FROM grades WHERE student_id = $1 AND subject = $2 AND term = $5
-           )`,
-          [studentId, subject, score, maxScore, term],
-        );
-      }
+    for (const [subject, score, maxScore, term] of gradeRows) {
+      await query(
+        `INSERT INTO grades (student_id, subject, score, max_score, term)
+         SELECT $1, $2, $3, $4, $5
+         WHERE NOT EXISTS (
+           SELECT 1 FROM grades WHERE student_id = $1 AND subject = $2 AND term = $5
+         )`,
+        [parentUserId, subject, score, maxScore, term],
+      );
     }
   }
-}
-
-export async function ensureDatabaseReady() {
-  await createTables();
-  await seedDemoData();
 }
