@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../parent_dashboard.dart';
 import '../../services/api_service.dart';
-import '../../widgets/design_system/design_system.dart';
+import '../../theme/app_spacing.dart';
+import '../../theme/app_text_styles.dart';
+import '../../widgets/design_system/app_button.dart';
+import '../../widgets/design_system/glass_card.dart';
 
 class AiTutorScreen extends StatefulWidget {
   const AiTutorScreen({super.key});
@@ -100,8 +102,8 @@ class _AiTutorScreenState extends State<AiTutorScreen> {
       if (!_scrollController.hasClients) return;
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
-        duration: AppAnimations.normal,
-        curve: AppAnimations.standard,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
       );
     });
   }
@@ -145,14 +147,14 @@ class _AiTutorScreenState extends State<AiTutorScreen> {
       return;
     }
 
-    navigator.pushReplacementNamed(ParentDashboard.routeName);
+    navigator.pushReplacementNamed('/parent');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('🤖 AI Study Buddy'),
+        title: const Text('AI Study Buddy'),
         leading: IconButton(
           tooltip: 'Back',
           icon: const Icon(Icons.arrow_back_rounded),
@@ -168,85 +170,38 @@ class _AiTutorScreenState extends State<AiTutorScreen> {
           ),
         ],
       ),
-      body: GradientBackground(
-        showOrbs: false,
-        child: SafeArea(
-          top: false,
-          child: ResponsiveContainer(
-            maxWidth: 1180,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= AppBreakpoints.desktop;
-                final chat = _TutorChatPanel(
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _TutorHeader(
+              isLoading: _isLoading,
+              onClear: _clearConversation,
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _TutorChatPanel(
                   messages: _messages,
                   scrollController: _scrollController,
                   isLoading: _isLoading,
                   onCopy: _copyAnswer,
                   onRegenerate: _regenerateLastAnswer,
-                );
-
-                return Column(
-                  children: [
-                    const _TutorBreadcrumb(),
-                    const SizedBox(height: AppSpacing.sm),
-                    _TutorHeader(
-                      isLoading: _isLoading,
-                      onClear: _clearConversation,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Expanded(
-                      child: wide
-                          ? Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const SizedBox(
-                                  width: 280,
-                                  child: _StudyPromptPanel(),
-                                ),
-                                const SizedBox(width: AppSpacing.lg),
-                                Expanded(child: chat),
-                              ],
-                            )
-                          : chat,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _QuestionComposer(
-                      controller: _questionController,
-                      focusNode: _focusNode,
-                      enabled: !_isLoading,
-                      onSubmit: () => _ask(),
-                    ),
-                  ],
-                );
-              },
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TutorBreadcrumb extends StatelessWidget {
-  const _TutorBreadcrumb();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.md),
-        child: Text(
-          'Parent Dashboard > AI Study Buddy',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: textTheme.bodySmall?.copyWith(
-            color: scheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-          ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _QuestionComposer(
+                controller: _questionController,
+                focusNode: _focusNode,
+                enabled: !_isLoading,
+                onSubmit: () => _ask(),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -268,25 +223,25 @@ class _TutorHeader extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return GlassCard(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              borderRadius: AppSpacing.borderRadiusSm,
+              borderRadius: BorderRadius.circular(12),
               color: scheme.primary.withValues(alpha: 0.12),
             ),
             child: Icon(Icons.psychology_alt_outlined, color: scheme.primary),
           ),
-          const SizedBox(width: AppSpacing.sm),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AI Tutor',
+                  'AI Study Buddy',
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -339,7 +294,7 @@ class _TutorChatPanel extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: ListView.builder(
         controller: scrollController,
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(16),
         itemCount: messages.length + (isLoading ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == messages.length) {
@@ -394,18 +349,18 @@ class _TutorBubble extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
         child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.only(bottom: 12),
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: bubbleColor,
               borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(AppSpacing.radiusMd),
-                topRight: const Radius.circular(AppSpacing.radiusMd),
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
                 bottomLeft: Radius.circular(
-                  isStudent ? AppSpacing.radiusMd : AppSpacing.radiusXs,
+                  isStudent ? 16 : 4,
                 ),
                 bottomRight: Radius.circular(
-                  isStudent ? AppSpacing.radiusXs : AppSpacing.radiusMd,
+                  isStudent ? 4 : 16,
                 ),
               ),
               border: Border.all(
@@ -415,7 +370,7 @@ class _TutorBubble extends StatelessWidget {
               ),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -430,9 +385,9 @@ class _TutorBubble extends StatelessWidget {
                           ),
                     ),
                   if (!isStudent && !isTyping) ...[
-                    const SizedBox(height: AppSpacing.sm),
+                    const SizedBox(height: 12),
                     Wrap(
-                      spacing: AppSpacing.xs,
+                      spacing: 8,
                       children: [
                         Tooltip(
                           message: 'Copy answer',
@@ -493,31 +448,34 @@ class _TypingIndicatorState extends State<_TypingIndicator>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < 3; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 5),
-                child: Transform.translate(
-                  offset: Offset(
-                    0,
-                    -4 *
-                        Curves.easeInOut.transform(
-                          ((_controller.value + i * 0.2) % 1).clamp(0, 1),
-                        ),
-                  ),
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: scheme.primary,
-                      shape: BoxShape.circle,
-                    ),
+        final dots = <Widget>[];
+        for (var i = 0; i < 3; i++) {
+          dots.add(
+            Padding(
+              padding: const EdgeInsets.only(right: 5),
+              child: Transform.translate(
+                offset: Offset(
+                  0,
+                  -4 *
+                      Curves.easeInOut.transform(
+                        ((_controller.value + i * 0.2) % 1).clamp(0, 1),
+                      ),
+                ),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-          ],
+            ),
+          );
+        }
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: dots,
         );
       },
     );
@@ -540,7 +498,7 @@ class _QuestionComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -560,7 +518,7 @@ class _QuestionComposer extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: AppSpacing.xs),
+          const SizedBox(width: 8),
           Tooltip(
             message: 'Send question',
             child: IconButton.filled(
@@ -574,61 +532,6 @@ class _QuestionComposer extends StatelessWidget {
                     ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StudyPromptPanel extends StatelessWidget {
-  const _StudyPromptPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.auto_stories_outlined, color: scheme.primary, size: 32),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Study starters',
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          for (final prompt in const [
-            'Explain photosynthesis',
-            'Help me solve a fraction problem',
-            'Summarize the water cycle',
-            'Make a study plan for a test',
-          ])
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 17,
-                    color: scheme.tertiary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      prompt,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );

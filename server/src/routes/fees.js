@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { authRequired } from '../middleware/auth.js';
 import { query } from '../db.js';
 import { notifyAllParents, notifyAllTeachers } from '../utils/notify.js';
+import { feesRemindValidation, feesAttachValidation } from '../middleware/validate.js';
 
 dotenv.config();
 
@@ -28,7 +29,7 @@ async function ensureFeeFilesTable() {
   `);
 }
 
-feesRouter.post('/remind', authRequired, async (req, res) => {
+feesRouter.post('/remind', authRequired, feesRemindValidation, async (req, res) => {
   const { amount, currency } = req.body;
   const amountInr = amount || 5000;
   let order = null;
@@ -58,7 +59,7 @@ feesRouter.post('/remind', authRequired, async (req, res) => {
   return res.json({ status: 'sent', order });
 });
 
-feesRouter.post('/attach', authRequired, async (req, res) => {
+feesRouter.post('/attach', authRequired, feesAttachValidation, async (req, res) => {
   const { fileName, size } = req.body;
   if (!fileName) {
     return res.status(400).json({ error: 'Missing fileName' });
